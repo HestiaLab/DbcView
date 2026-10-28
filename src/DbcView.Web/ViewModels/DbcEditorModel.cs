@@ -1,7 +1,7 @@
 using DbcView.Application;
 using DbcView.Domain;
 
-namespace DbcView.ViewModels;
+namespace DbcView.Web.ViewModels;
 
 /// <summary>
 /// PanelModel for the DBC editor document. Tracks the open file's raw text

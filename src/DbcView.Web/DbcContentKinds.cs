@@ -1,4 +1,4 @@
-namespace DbcView;
+namespace DbcView.Web;
 
 /// <summary>
 /// Central content Kind constants shared between the workspace definition

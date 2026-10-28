@@ -37,7 +37,7 @@ flowchart LR
 dotnet restore DbcView.sln --configfile NuGet.Config
 dotnet build DbcView.sln --no-restore
 dotnet test DbcView.sln --no-build --no-restore
-dotnet run --project src/DbcView/DbcView.csproj --no-restore
+dotnet run --project src/DbcView.Web/DbcView.Web.csproj --no-restore
 ```
 
 打开 `dotnet run` 输出的 URL。
@@ -68,7 +68,7 @@ DbcView/
 ├── src/DbcView.Domain/          文档模型、标识与诊断
 ├── src/DbcView.Application/     用例、仓储与编解码端口
 ├── src/DbcView.Infrastructure/  DBC 解析/序列化、内存仓储
-├── src/DbcView/                 Blazor WASM 表现层与组合根
+├── src/DbcView.Web/             Blazor WASM 表现层与组合根
 │   ├── Components/              工作区宿主与面板
 │   ├── Services/                浏览器上传读取
 │   ├── ViewModels/              文件树/编辑器/属性视图模型

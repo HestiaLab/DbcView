@@ -14,7 +14,7 @@
     <PackageReference Include="coverlet.collector" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\DbcView\DbcView.csproj" />
+    <ProjectReference Include="..\..\src\DbcView.Web\DbcView.Web.csproj" />
     <ProjectReference Include="..\..\src\DbcView.Domain\DbcView.Domain.csproj" />
     <ProjectReference Include="..\..\src\DbcView.Application\DbcView.Application.csproj" />
     <ProjectReference Include="..\..\src\DbcView.Infrastructure\DbcView.Infrastructure.csproj" />

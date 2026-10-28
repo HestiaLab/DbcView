@@ -2,7 +2,7 @@ using System.Globalization;
 using DbcView.Application;
 using DbcView.Domain;
 
-namespace DbcView.ViewModels;
+namespace DbcView.Web.ViewModels;
 
 /// <summary>
 /// PanelModel for the DBC Properties panel. Holds read-only property values

@@ -1,7 +1,7 @@
 using DbcView.Application;
 using DbcView.Domain;
 
-namespace DbcView.ViewModels;
+namespace DbcView.Web.ViewModels;
 
 /// <summary>
 /// PanelModel for the DBC Explorer tree. Owns folder/file selection and

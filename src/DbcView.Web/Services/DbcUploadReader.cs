@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Components.Forms;
 
-namespace DbcView.Services;
+namespace DbcView.Web.Services;
 
 /// <summary>Outcome of reading an uploaded browser file into text.</summary>
 public sealed record DbcFileReadResult(bool Success, string Content, string? Error)

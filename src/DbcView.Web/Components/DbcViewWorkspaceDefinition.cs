@@ -4,7 +4,7 @@ using Atlas.Core.Items;
 using Atlas.Core.Layout;
 using Atlas.Core.Placement;
 
-namespace DbcView.Components;
+namespace DbcView.Web.Components;
 
 internal static class DbcViewWorkspaceDefinition
 {

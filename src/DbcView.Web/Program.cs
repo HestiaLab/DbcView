@@ -1,4 +1,4 @@
-using DbcView;
+using DbcView.Web;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 

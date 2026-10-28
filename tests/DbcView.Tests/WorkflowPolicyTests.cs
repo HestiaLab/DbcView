@@ -126,11 +126,11 @@ public sealed class WorkflowPolicyTests
     {
         var root = FindRepositoryRoot();
         var index = File.ReadAllText(
-            Path.Combine(root, "src", "DbcView", "wwwroot", "index.html"));
+            Path.Combine(root, "src", "DbcView.Web", "wwwroot", "index.html"));
 
         Assert.Contains("rel=\"icon\"", index, StringComparison.Ordinal);
         Assert.Contains("href=\"favicon.svg\"", index, StringComparison.Ordinal);
-        Assert.True(File.Exists(Path.Combine(root, "src", "DbcView", "wwwroot", "favicon.svg")));
+        Assert.True(File.Exists(Path.Combine(root, "src", "DbcView.Web", "wwwroot", "favicon.svg")));
     }
 
     private static int JobIndex(string text, string job)

@@ -13,13 +13,13 @@ public sealed class DemoPackageBoundaryTests
         ["DbcView.Domain"] = Array.Empty<string>(),
         ["DbcView.Application"] = new[] { "DbcView.Domain" },
         ["DbcView.Infrastructure"] = new[] { "DbcView.Domain", "DbcView.Application" },
-        ["DbcView"] = new[] { "DbcView.Domain", "DbcView.Application", "DbcView.Infrastructure" },
+        ["DbcView.Web"] = new[] { "DbcView.Domain", "DbcView.Application", "DbcView.Infrastructure" },
         ["DbcView.Tests"] = new[]
         {
             "DbcView.Domain",
             "DbcView.Application",
             "DbcView.Infrastructure",
-            "DbcView",
+            "DbcView.Web",
         },
     };
 
@@ -44,7 +44,7 @@ public sealed class DemoPackageBoundaryTests
                 package => package.StartsWith("Atlas.", StringComparison.Ordinal)
                     && package != "Atlas.Blazor");
 
-            if (name == "DbcView")
+            if (name == "DbcView.Web")
             {
                 Assert.Contains("Atlas.Blazor", packages);
             }
@@ -201,7 +201,7 @@ public sealed class DemoPackageBoundaryTests
         var references = ProjectReferences(testProject)
             .Select(Path.GetFileNameWithoutExtension)
             .ToArray();
-        Assert.Contains("DbcView", references);
+        Assert.Contains("DbcView.Web", references);
         Assert.Contains("DbcView.Domain", references);
         Assert.Contains("DbcView.Application", references);
         Assert.Contains("DbcView.Infrastructure", references);
