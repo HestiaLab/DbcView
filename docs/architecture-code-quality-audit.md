@@ -489,7 +489,7 @@ Q-04/Q-14 作为独立依赖轨道执行：先验证 Atlas 兼容性，升级目
 
 ## 14. 整改执行记录（2026-10-28）
 
-本节只记录整改事实与验证结果，不修改上文审计证据。整改在基线 `4bf6d9c91ef197d9a15538216321be947dd574c7` 的本地工作区完成，未执行 commit、push、PR、Pages 发布或远端设置变更。
+本节只记录整改事实与验证结果，不修改上文审计证据。整改在基线 `4bf6d9c91ef197d9a15538216321be947dd574c7` 的本地工作区完成；随后按要求创建分支 `refactor/audit-remediation` 并提交 PR #9，PR CI 已通过。未执行 Pages 发布或远端设置变更。
 
 ### 14.1 与审计基线的重新验证差异
 
@@ -511,7 +511,7 @@ Q-04/Q-14 作为独立依赖轨道执行：先验证 Atlas 兼容性，升级目
 |---|---|---|---|---|---|
 | Q-01 | 任意文本被当作合法空文档；异常被无类型 catch 吞掉；保存无诊断 | `DbcParser`（结构化 `DbcParseResult`/`DbcDiagnostic`/稳定 DBC001–DBC010）、`DbcFileWorkspace`、`DbcEditorModel`、`DbcEditorPanel`、`DbcDiagnosticList` | `DbcParserTests`（任意文本、坏 BO_、非法数字、位数范围、缺失 BU_、合法空文档、多路复用标记）、`DbcPanelsTests`（无效文件、保存非法草稿、合法空文件、警告仍可看表格）、`DbcApplicationTests` | `dotnet test` 104 通过；浏览器上传 `not-a-dbc.dbc` 显示 DBC001/DBC002，表格行数 0，不再出现 “No messages” | 已修复（含测试/浏览器验证） |
 | Q-02 | 读取/超限异常在 try 外逃逸，无界面诊断 | `DbcUploadReader`（大小/流打开/完整读取边界）、`DbcTreePanel`（每文件诊断、数量上限、失败后状态一致） | `DbcUploadReaderTests`（成功、超限不打开流、打开失败、读取失败）、`DbcPanelsTests`（超限、11 文件上限、重复、失败后继续上传） | 浏览器上传 4,194,305 字节文件显示 “too large”，文件列表不变；随后上传仍成功；无控制台错误 | 已修复（含测试/浏览器验证） |
-| Q-03 | Pages 发布不依赖 CI 测试/格式结果 | `.github/workflows/deploy.yml`：`verify` → `build`（needs verify）→ `deploy`（needs build） | `WorkflowPolicyTests.Deploy_workflow_requires_verification_before_publish_and_deploy` | 本地策略测试通过；发布产物命令演练通过；GitHub 远端实际运行未执行（未获授权 push） | 已修复（本地静态/策略验证；远端运行待首次推送） |
+| Q-03 | Pages 发布不依赖 CI 测试/格式结果 | `.github/workflows/deploy.yml`：`verify` → `build`（needs verify）→ `deploy`（needs build） | `WorkflowPolicyTests.Deploy_workflow_requires_verification_before_publish_and_deploy` | 本地策略测试与发布产物演练通过；PR #9 的 Ubuntu/Windows build、format 全部 pass；deploy 工作流只在 main 触发，合并后验证 | 已修复（本地+PR CI；部署工作流待合并后验证） |
 | Q-04 | net6.0 已 EOL | `global.json`、`Directory.Build.props`、`Directory.Packages.props`、两个 csproj、CI/deploy SDK、README/README.zh | 全量构建、测试、格式、发布、浏览器冒烟 | net10.0 + Atlas.Blazor 0.2.0 编译/测试/浏览器均通过；NETSDK1138 消失；Atlas 包未声明 net10 目标，仅按 net6 兼容运行，已记录风险 | 已修复（Atlas 兼容性已实测） |
 | Q-05 | 所有 trailing sections 被移到文件末尾 | `DbcDocument` 有序 `Sections`（`DbcMessageSection`/`DbcRawSection`）、`DbcParser.Serialize` | `DbcParserTests.Parse_preserves_comment_order_between_messages`（CM_/BA_/VAL_ 顺序）、真实样本往返 | 测试通过；序列化保持非空白内容顺序 | 已修复（含测试） |
 | Q-06 | 标签/状态/保存仅用文件名 | `DbcDocumentId`（目录+文件名、Key/TryParseKey）、`ContentReference.ResourceId`、编辑器模型、树选择、属性面板 | `DbcApplicationTests`（A/x 与 B/x 独立保存、TryParseKey）、`DbcViewModelTests`（双编辑器独立保存）、`DbcViewWorkspaceTests`（同一文件名两目录两个标签，分别显示 MessageA/MessageB） | 浏览器在 3 个目录中打开两个同名 `bmw_e9x_e8x.dbc`，标签为完整 `folder/file`，各自 325 行；无控制台错误 | 已修复（含测试/浏览器验证） |
@@ -528,15 +528,15 @@ Q-04/Q-14 作为独立依赖轨道执行：先验证 Atlas 兼容性，升级目
 | Q-17 | 无行为的 File/Edit/View 等；硬编码 LF/UTF-8/4 spaces/main | `DbcViewTopToolbar`、`DbcViewStatusBar` | `DbcViewWorkspaceTests.Workspace_chrome_exposes_only_real_actions_and_state` | 顶栏仅产品标识与真实 Undo/Redo；状态栏仅真实操作状态；截图确认 | 已修复（含测试/浏览器验证） |
 | Q-18 | `_message`/`_signal` 只写不读；未用参数 | `DbcPropertyModel`、`DbcEditorPanel` | 现有属性/编辑器测试通过 | 编译 0 警告；死字段删除 | 已修复（含构建） |
 | Q-19 | 旧 demo 样式无引用 | `app.css` 重写，删除 tree/service/code/markdown/terminal 等死规则 | 选择器扫描；桌面/窄屏截图 | 代码中无相关选择器；页面无样式回归（截图检查） | 已修复（含静态/浏览器验证） |
-| Q-20 | CI 不收覆盖率 | `ci.yml`（Ubuntu `XPlat Code Coverage` + artifact，`if-no-files-found: error`）、coverlet.collector | `WorkflowPolicyTests.CI_collects_coverage_on_one_os_and_uploads_an_artifact` | 本地 Release 覆盖率成功生成并解析；远端 artifact 未在 GitHub 实际运行 | 已修复（本地验证；远端首次运行待推送） |
+| Q-20 | CI 不收覆盖率 | `ci.yml`（Ubuntu `XPlat Code Coverage` + artifact，`if-no-files-found: error`）、coverlet.collector | `WorkflowPolicyTests.CI_collects_coverage_on_one_os_and_uploads_an_artifact` | 本地 Release 覆盖率成功生成并解析；PR #9 Ubuntu CI 生成 `coverage-ubuntu` artifact（16,876 bytes），可下载 | 已修复（本地+PR CI） |
 | Q-21 | 边界测试扫描整个工作树 | `DemoPackageBoundaryTests` 仅扫描 `src/*`、`tests/*`，过滤 bin/obj/.packages/.vs/TestResults/.git | `Boundary_scan_ignores_unrelated_temporary_projects` | 临时根目录项目被忽略；测试通过 | 已修复（含测试） |
 | Q-22 | 按钮索引、当前目录样本路径 | 测试 testid/角色选择器；`AppContext.BaseDirectory` 样本路径 | 全测试 | 无按钮位置索引；从任意工作目录运行通过 | 已修复（含测试） |
-| Q-23 | fork PR 无凭据仍运行 PAT 看板流程 | `add-to-project.yml`（fork PR 条件、显式 `contents: read`、不使用 `pull_request_target`） | `WorkflowPolicyTests.Board_automation_skips_fork_pull_requests_without_exposing_pat` | 策略测试通过；真实 fork PR 未在本地构造，远端行为待首次外部 PR 验证 | 已修复（静态验证；远端 fork 待验证） |
+| Q-23 | fork PR 无凭据仍运行 PAT 看板流程 | `add-to-project.yml`（fork PR 条件、显式 `contents: read`、不使用 `pull_request_target`） | `WorkflowPolicyTests.Board_automation_skips_fork_pull_requests_without_exposing_pat` | 策略测试通过；PR #9 内部 PR 的看板自动化 pass；真实 fork PR 条件尚未构造验证 | 已修复（静态+内部 PR 验证；fork 场景待外部 PR） |
 | Q-24 | base href 替换不断言 | `deploy.yml` 的 `Assert published shell`（base、启动脚本、Atlas CSS、失败 exit 1） | `WorkflowPolicyTests.Base_href_rewrite_and_published_shell_are_asserted`；本地发布演练 | sed 后断言通过；模板不匹配会失败 | 已修复（本地演练/策略测试） |
 | Q-25 | CONTRIBUTING 本地 feed 需两个包 | `CONTRIBUTING.md`（仅 `Atlas.Blazor`，Core 内嵌）；README/中文 README 补齐架构/行为 | 文档审阅 | 文档与单包分发一致 | 已修复 |
 | Q-26 | `/favicon.ico` 404 | `wwwroot/favicon.svg`、`index.html` 显式 icon | `WorkflowPolicyTests.Index_declares_a_favicon_that_exists` | `GET /favicon.svg` 200；首页与 `/verification` 控制台 0 错误 | 已修复（含测试/浏览器验证） |
-| Q-27 | Pages/OIDC 写权限在顶层；看板无显式最小权限 | `deploy.yml` 顶层 `contents: read`，deploy job 才有 `pages: write`/`id-token: write`；`add-to-project.yml` 显式 `contents: read` | `WorkflowPolicyTests.Deploy_permissions_are_scoped_to_the_deploy_job` | 策略测试通过；远端运行未执行 | 已修复（静态验证；远端待运行） |
-| Q-28 | Action 使用可变 tag | 三个工作流全部固定 40 位 SHA + 版本注释；新增 `.github/dependabot.yml`（github-actions/nuget 周更） | `WorkflowPolicyTests.All_actions_are_pinned_to_full_commit_sha_with_version_comment`；`git ls-remote` 核对 tag→SHA | 6 个 Action 的 SHA 与 tag 对应；策略测试通过 | 已修复（静态验证） |
+| Q-27 | Pages/OIDC 写权限在顶层；看板无显式最小权限 | `deploy.yml` 顶层 `contents: read`，deploy job 才有 `pages: write`/`id-token: write`；`add-to-project.yml` 显式 `contents: read` | `WorkflowPolicyTests.Deploy_permissions_are_scoped_to_the_deploy_job` | 策略测试通过；PR #9 的 CI/看板工作流已实际运行通过；deploy job 权限仍待 main 发布验证 | 已修复（静态+PR CI；deploy 待合并后验证） |
+| Q-28 | Action 使用可变 tag | 三个工作流全部固定 40 位 SHA + 版本注释；新增 `.github/dependabot.yml`（github-actions/nuget 周更） | `WorkflowPolicyTests.All_actions_are_pinned_to_full_commit_sha_with_version_comment`；`git ls-remote` 核对 tag→SHA | 6 个 Action 的 SHA 与 tag 对应；策略测试通过；PR #9 CI/format/看板均使用固定 SHA 运行成功 | 已修复（静态+PR CI） |
 
 ### 14.3 实际执行的命令与结果
 
@@ -557,6 +557,7 @@ Q-04/Q-14 作为独立依赖轨道执行：先验证 Atlas 兼容性，升级目
 | 发布演练 | `dotnet publish src/DbcView -c Release -o <tmp>` 成功；base href/Blazor 启动脚本/Atlas CSS/favicon 断言全部通过 |
 | 工作流静态检查 | Python YAML 解析 3 个工作流 + dependabot 配置通过；6 个 Action 均为 40 位 SHA；`WorkflowPolicyTests` 8 项通过 |
 | `git status` / `git diff` | 仅整改相关文件；无调试文件、临时样本、密钥或无关重写；`TestResults` 为已忽略产物，未加入仓库 |
+| PR CI（run 40626092904 / 40626099183） | Ubuntu build、Windows build、format 全部 pass；PR #9 看板自动化 pass；`coverage-ubuntu` artifact 已生成 |
 
 ### 14.4 浏览器验证（Playwright，真实 Chromium）
 
@@ -578,7 +579,7 @@ Q-04/Q-14 作为独立依赖轨道执行：先验证 Atlas 兼容性，升级目
 
 ### 14.5 未解决/阻塞项与剩余风险
 
-1. **远端 GitHub 行为未执行**：未获授权 commit/push，因此 Q-03/Q-20/Q-23/Q-24/Q-27/Q-28 的 GitHub Actions 实际运行、fork PR 跳过、artifact 下载和 Pages 发布未在远端验证；本地已有 YAML 解析、SHA 核对、策略测试、发布产物演练。剩余风险是 GitHub 表达式/权限在真实事件中的行为与本地静态判断不同。
+1. **远端 GitHub 行为已部分验证**：PR #9 的 Ubuntu/Windows build、format、看板自动化均通过，`coverage-ubuntu` artifact 已生成。deploy 工作流只在 main 触发，Pages 发布尚未执行；真实 fork PR 的跳过条件尚未构造验证。剩余风险是 deploy job 与 fork 事件在真实环境中的行为。
 2. **Q-09 故障注入缺口**：Atlas 的 `WorkspaceResult<T>` 不能从外部构造失败结果，测试未注入“关闭/打开/标题更新失败”。已消除 `async void`、拆分文档选择事件、检查操作结果、为标题更新增加可见错误捕获，并通过“新建目录不重开标签”回归测试覆盖了已发现的实际缺陷。
 3. **Q-16 拖拽/分隔条只能在浏览器验证**：Atlas 0.2.0 的指针与键盘分隔条逻辑在外部 JS 控制器中执行，bUnit 无法驱动；已用真实 Chromium 验证拖动和键盘改变布局并启用 Undo，bUnit 交互套件已改用严格 JSInterop。
 4. **Atlas 未声明 .NET 10 支持**：Atlas.Blazor 0.2.0 仅有 net6.0 目标；在 .NET 10 上编译、测试和浏览器运行通过，但这是兼容性实测而非厂商声明。若后续 Atlas 发布明确支持版本，应优先升级并删除该兼容性说明。
@@ -587,4 +588,4 @@ Q-04/Q-14 作为独立依赖轨道执行：先验证 Atlas 兼容性，升级目
 
 ### 14.6 交付结论
 
-28 项问题全部完成代码整改；其中 22 项具备本地自动化测试/静态策略验证，6 项工作流/发布项具备本地策略测试和产物演练但受“未推送”限制未做远端运行。P0=0、P1=4/4、P2=12/12、P3=12/12 均已关闭，无因代码原因遗留的阻塞项；剩余风险集中在远端 CI 首次运行、Atlas 指针控制器的 bUnit 不可模拟性和 Atlas 对 .NET 10 的非声明式兼容。
+28 项问题全部完成代码整改，PR #9 的 Ubuntu/Windows build、format、看板自动化均通过。P0=0、P1=4/4、P2=12/12、P3=12/12 均已关闭，无因代码原因遗留的阻塞项；剩余风险集中在 deploy/Pages 与真实 fork PR 尚未触发、Atlas 指针控制器的 bUnit 不可模拟性和 Atlas 对 .NET 10 的非声明式兼容。
