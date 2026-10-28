@@ -1,76 +1,90 @@
-/* DbcView — cartoon building-block skin with light/dark themes.
-   Bright block colors, thick outlines, big radii, and hard block shadows.
-   The whole palette is driven by --demo-* variables: :root defines the
-   light palette, and @media (prefers-color-scheme: dark) swaps in a
-   dark variant, so the demo follows the OS/browser theme automatically.
-   Atlas chrome that the variable contract covers is themed through
-   --atlas-* overrides (which reference --demo-*); effect-layer styling
-   (borders, radii, shadows) stays in consumer selectors.
+/* DbcView — neutral tool workspace.
+   One semantic token layer drives light/dark themes, Atlas chrome and every
+   DBC panel. Structure is expressed with 1px dividers, spacing and type
+   weight instead of saturated fills, thick outlines or hard shadows.
 
    Contrast contract (WCAG AA):
-   - normal text >= 4.5:1, large text >= 3:1, UI indicators >= 3:1;
-   - every foreground/background token pair below is chosen against its
-     actual surface, including selection, table header and alerts. */
+   - body text >= 4.5:1, UI indicators >= 3:1 on their actual surface;
+   - focus rings use --dv-focus, which is contrast-checked against the
+     surface, chrome and page background tokens. */
 
 :root {
-    color-scheme: light dark;
-    font-family: "Baloo 2", "Fredoka", "Nunito", "Comic Sans MS", "Segoe UI", sans-serif;
+  color-scheme: light dark;
 
-    /* Demo palette — light */
-    --demo-bg: #fff8e7;
-    --demo-surface: #fffdf7;
-    --demo-chrome: #ffd93d;
-    --demo-chrome-ink: #3d3a35;
-    --demo-accent: #c62f3c;
-    --demo-accent-ink: #ffffff;
-    --demo-blue: #2f6fd0;
-    --demo-blue-ink: #ffffff;
-    --demo-green: #6bcb77;
-    --demo-ink: #3d3a35;
-    --demo-muted: #8a5a2b;
-    --demo-border: #3d3a35;
-    --demo-hover: #ffb3b3;
-    --demo-selection: #2e7d4f;
-    --demo-selection-ink: #ffffff;
-    --demo-ok-ink: #1f6b3a;
-    --demo-error-bg: #fde2e2;
-    --demo-error-ink: #7a1018;
-    --demo-warning-bg: #fff3c4;
-    --demo-warning-ink: #5a3b00;
-    --demo-success-bg: #d9f2e3;
-    --demo-success-ink: #14532d;
-    background: var(--demo-bg);
-    color: var(--demo-ink);
+  --dv-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
+  --dv-font-mono: "SFMono-Regular", "Cascadia Code", Consolas, "Liberation Mono", monospace;
+
+  /* Surfaces and text — light */
+  --dv-bg: #f6f7f9;
+  --dv-surface: #ffffff;
+  --dv-chrome: #fbfcfd;
+  --dv-sunken: #f1f3f5;
+  --dv-text: #1f2328;
+  --dv-text-secondary: #57606a;
+  --dv-text-muted: #6e7781;
+  --dv-text-disabled: #8c959f;
+  --dv-border: #d0d7de;
+  --dv-divider: #e6e9ed;
+
+  /* Interaction */
+  --dv-accent: #0969da;
+  --dv-accent-strong: #0757b8;
+  --dv-on-accent: #ffffff;
+  --dv-hover: #f2f4f7;
+  --dv-selection: #e8f0fb;
+  --dv-focus: #0969da;
+
+  /* Feedback */
+  --dv-danger: #cf222e;
+  --dv-danger-bg: #fff1f0;
+  --dv-danger-text: #a40e26;
+  --dv-warning: #9a6700;
+  --dv-warning-bg: #fff8c5;
+  --dv-warning-text: #7d4e00;
+  --dv-success: #1a7f37;
+  --dv-success-bg: #e9f7ee;
+  --dv-success-text: #116329;
+
+  background: var(--dv-bg);
+  color: var(--dv-text);
+  font-family: var(--dv-font-sans);
+  font-size: 16px;
+  line-height: 1.45;
 }
 
 @media (prefers-color-scheme: dark) {
-    :root {
-        /* Demo palette — dark (night-block variant) */
-        --demo-bg: #1e1b16;
-        --demo-surface: #2b2620;
-        --demo-chrome: #c9971e;
-        --demo-chrome-ink: #221c10;
-        --demo-accent: #ff6b6b;
-        --demo-accent-ink: #2b0a0a;
-        --demo-blue: #2f6fd0;
-        --demo-blue-ink: #ffffff;
-        --demo-green: #6ddb8a;
-        --demo-ink: #f0e8d8;
-        --demo-muted: #b89a6a;
-        --demo-border: #0f0d0a;
-        --demo-hover: #4a4034;
-        --demo-selection: #2e7d4f;
-        --demo-selection-ink: #ffffff;
-        --demo-ok-ink: #0f3d16;
-        --demo-error-bg: #4a151a;
-        --demo-error-ink: #ffd7da;
-        --demo-warning-bg: #4a3a10;
-        --demo-warning-ink: #ffe9a8;
-        --demo-success-bg: #123524;
-        --demo-success-ink: #b9f2cf;
-        background: var(--demo-bg);
-        color: var(--demo-ink);
-    }
+  :root {
+    /* Surfaces and text — dark */
+    --dv-bg: #0d1117;
+    --dv-surface: #161b22;
+    --dv-chrome: #161b22;
+    --dv-sunken: #10151c;
+    --dv-text: #e6edf3;
+    --dv-text-secondary: #b1bac4;
+    --dv-text-muted: #8b949e;
+    --dv-text-disabled: #6e7681;
+    --dv-border: #30363d;
+    --dv-divider: #21262d;
+
+    /* Interaction */
+    --dv-accent: #58a6ff;
+    --dv-accent-strong: #79b8ff;
+    --dv-on-accent: #0d1117;
+    --dv-hover: #21262d;
+    --dv-selection: #1f3550;
+    --dv-focus: #58a6ff;
+
+    /* Feedback */
+    --dv-danger: #ff7b72;
+    --dv-danger-bg: #2d1214;
+    --dv-danger-text: #ffb3ad;
+    --dv-warning: #d29922;
+    --dv-warning-bg: #2b2110;
+    --dv-warning-text: #ffd580;
+    --dv-success: #3fb950;
+    --dv-success-bg: #0f2a19;
+    --dv-success-text: #7ee787;
+  }
 }
 
 html,
@@ -78,565 +92,1190 @@ body,
 #app,
 .dbc-view-shell,
 .dbc-view-shell > .atlas-v2-workspace {
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    overflow: hidden;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
 }
 
-body { min-width: 20rem; }
-button { font: inherit; }
-#blazor-error-ui { display: none; }
+body {
+  min-width: 20rem;
+  background: var(--dv-bg);
+  color: var(--dv-text);
+  font-size: 0.8125rem;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+::selection {
+  background: var(--dv-accent);
+  color: var(--dv-on-accent);
+}
 
 :focus-visible {
-    /* currentColor is already contrast-checked against each control's surface,
-       so the ring stays >= 3:1 on the red topbar, green selection and chrome. */
-    outline: 3px solid currentColor;
-    outline-offset: 2px;
+  outline: 2px solid var(--dv-focus);
+  outline-offset: 2px;
+}
+
+#blazor-error-ui {
+  display: none;
+}
+
+.dbc-icon {
+  flex: 0 0 auto;
+  display: inline-block;
+  vertical-align: middle;
+  pointer-events: none;
 }
 
 .dbc-view-loading {
-    min-height: 100%;
-    display: grid;
-    place-items: center;
-    background: var(--demo-bg);
-    color: var(--demo-muted);
+  display: grid;
+  min-height: 100%;
+  place-items: center;
+  background: var(--dv-bg);
+  color: var(--dv-text-muted);
+  font-size: 13px;
 }
 
 /* ============================================================
-   Atlas variable contract overrides (ADR-0023 / REQ-NF-009).
-   Every Atlas token is driven by a --demo-* palette variable, so the
-   light/dark media query restyles the whole Atlas surface with zero
-   extra code. No !important, no internal selectors for these.
+   Atlas chrome contract. Atlas exposes CSS variables for its
+   surfaces and effect sizes, so the workspace follows the token
+   layer without patching private behaviour.
    ============================================================ */
 .dbc-view-shell .atlas-v2-workspace {
-    --atlas-accent: var(--demo-accent);
-    --atlas-surface: var(--demo-surface);
-    --atlas-text: var(--demo-ink);
-    --atlas-splitter-size: 0.4rem;
-    --atlas-splitter-hit-area: 0.3rem;
-    --atlas-chrome-height: 2.5rem;
-    --atlas-gap: 0.5rem;
-    --atlas-padding-compact: 0.5rem 0.75rem;
-    --atlas-radius: 0.75rem;
-    --atlas-radius-sm: 0.5rem;
-    --atlas-border-width: 2px;
-    --atlas-focus-ring-width: 3px;
-    --atlas-splitter-opacity: 0.9;
-    --atlas-splitter-opacity-hover: 1;
-    --atlas-splitter-opacity-focus: 1;
-    --atlas-drop-highlight-alpha-soft: 18%;
-    --atlas-drop-highlight-alpha-strong: 28%;
-    --atlas-toolbar-divider-opacity: 0.4;
-    --atlas-drag-preview-opacity: 0.98;
-    /* Chrome tokens (ADR-0023 extension) */
-    --atlas-group-bg: var(--demo-surface);
-    --atlas-chrome-bg: var(--demo-chrome);
-    --atlas-tab-text: var(--demo-chrome-ink);
-    --atlas-tab-text-active: var(--demo-accent);
-    --atlas-tab-bg-active: var(--demo-surface);
-    --atlas-tab-bg-hover: var(--demo-hover);
-    --atlas-splitter-color: var(--demo-blue);
-    background: var(--demo-bg);
-    color: var(--demo-ink);
+  --atlas-accent: var(--dv-accent);
+  --atlas-surface: var(--dv-surface);
+  --atlas-text: var(--dv-text);
+  --atlas-splitter-size: 0.3rem;
+  --atlas-splitter-hit-area: 0.25rem;
+  --atlas-chrome-height: 2.125rem;
+  --atlas-gap: 0.25rem;
+  --atlas-padding-compact: 0.25rem 0.5rem;
+  --atlas-radius: 4px;
+  --atlas-radius-sm: 4px;
+  --atlas-border-width: 1px;
+  --atlas-focus-ring-width: 2px;
+  --atlas-splitter-opacity: 1;
+  --atlas-splitter-opacity-hover: 1;
+  --atlas-splitter-opacity-focus: 1;
+  --atlas-drop-highlight-alpha-soft: 12%;
+  --atlas-drop-highlight-alpha-strong: 20%;
+  --atlas-toolbar-divider-opacity: 0.5;
+  --atlas-drag-preview-opacity: 0.98;
+  --atlas-drag-preview-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+  --atlas-group-bg: var(--dv-surface);
+  --atlas-chrome-bg: var(--dv-chrome);
+  --atlas-tab-text: var(--dv-text-secondary);
+  --atlas-tab-text-active: var(--dv-text);
+  --atlas-tab-bg-active: var(--dv-surface);
+  --atlas-tab-bg-hover: var(--dv-hover);
+  --atlas-splitter-color: var(--dv-border);
+  background: var(--dv-bg);
+  color: var(--dv-text);
+  font-family: var(--dv-font-sans);
 }
 
-/* ============================================================
-   Atlas chrome effect layer — borders, radii, shadows that are not
-   part of the variable contract yet. Backgrounds are driven by the
-   --atlas-* chrome tokens above.
-   ============================================================ */
+.dbc-view-shell {
+  display: flex;
+  flex-direction: column;
+  background: var(--dv-bg);
+}
+
+.dbc-view-shell > .atlas-v2-workspace {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.atlas-v2-top-toolbar,
+.atlas-v2-status-bar {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.atlas-v2-top-toolbar {
+  background: var(--dv-chrome);
+  border-bottom: 1px solid var(--dv-border);
+}
+
+.atlas-v2-status-bar {
+  background: var(--dv-chrome);
+  border-top: 1px solid var(--dv-border);
+}
+
+.dbc-view-shell .atlas-v2-work-area {
+  background: var(--dv-bg);
+}
+
 .dbc-view-shell .atlas-v2-work-area,
 .dbc-view-shell .atlas-v2-split,
 .dbc-view-shell .atlas-v2-group,
 .dbc-view-shell .atlas-v2-content-stack,
 .dbc-view-shell .atlas-v2-content-outlet {
-    min-width: 0;
-    min-height: 0;
+  min-width: 0;
+  min-height: 0;
 }
 
 .dbc-view-shell .atlas-v2-group {
-    border: 2px solid var(--demo-border);
-    border-radius: var(--atlas-radius, 0.75rem);
-    box-shadow: 0 0.3rem 0 color-mix(in srgb, var(--demo-ink) 18%, transparent);
-    margin: 0.15rem;
-}
-
-.dbc-view-shell .atlas-v2-splitter {
-    border-radius: 0.3rem;
-    box-shadow: 0 0 0 2px var(--demo-bg);
+  border: 1px solid var(--dv-border);
+  border-radius: 4px;
+  background: var(--dv-surface);
 }
 
 .dbc-view-shell .atlas-v2-panel-header,
 .dbc-view-shell .atlas-v2-tab-strip {
-    min-height: 2.5rem;
-    align-items: center;
-    border-bottom: 2px solid var(--demo-border);
-    border-radius: 0.6rem 0.6rem 0 0;
-    user-select: none;
+  min-height: 2.125rem;
+  box-sizing: border-box;
+  align-items: center;
+  border-bottom: 1px solid var(--dv-divider);
+  background: var(--dv-chrome);
+  color: var(--dv-text-secondary);
+  user-select: none;
 }
 
-.dbc-view-shell .atlas-v2-panel-header { padding: 0 0.75rem; font-weight: 700; }
+.dbc-view-shell .atlas-v2-panel-header {
+  gap: 0.5rem;
+  padding: 0 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
 
-.dbc-view-shell .atlas-v2-tab-strip { padding-inline: 0.4rem; gap: 0.15rem; }
+.dbc-view-shell .atlas-v2-item-icon:empty {
+  display: none;
+}
+
+.dbc-view-shell .atlas-v2-tab-strip {
+  gap: 0.125rem;
+  padding-inline: 0.375rem;
+}
 
 .dbc-view-shell .atlas-v2-tab-strip [role="tab"] {
-    min-height: 2.4rem;
-    max-width: 13rem;
-    overflow: hidden;
-    border: 2px solid transparent;
-    border-radius: 0.5rem 0.5rem 0 0;
-    padding: 0.25rem 0.8rem;
-    font-weight: 700;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.125rem;
+  max-width: 15rem;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  padding: 0 0.75rem;
+  background: transparent;
+  color: var(--dv-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.dbc-view-shell .atlas-v2-tab-strip [role="tab"][aria-selected] {
-    border-color: var(--demo-border);
-    border-bottom-color: var(--atlas-tab-bg-active);
-    box-shadow: 0 0.25rem 0 var(--demo-accent);
+.dbc-view-shell .atlas-v2-tab-strip [role="tab"]:hover:not([aria-selected="true"]) {
+  background: var(--dv-hover);
+  color: var(--dv-text);
+}
+
+.dbc-view-shell .atlas-v2-tab-strip [role="tab"][aria-selected="true"] {
+  background: var(--dv-surface);
+  color: var(--dv-text);
+  box-shadow: inset 0 -2px 0 var(--dv-accent);
 }
 
 .dbc-view-shell .atlas-v2-toolbar {
-    width: 2.75rem;
-    height: 100%;
-    box-sizing: border-box;
-    align-items: center;
-    padding: 0.3rem 0;
-    border-inline: 2px solid var(--demo-border);
+  width: 2.375rem;
+  height: 100%;
+  box-sizing: border-box;
+  align-items: center;
+  padding: 0.25rem 0;
+  background: var(--dv-chrome);
 }
 
-.dbc-view-shell .atlas-v2-toolbar-region { width: 100%; }
+.dbc-view-shell .atlas-v2-toolbar[data-atlas-toolbar-side="inline-start"] {
+  border-inline-end: 1px solid var(--dv-border);
+}
+
+.dbc-view-shell .atlas-v2-toolbar[data-atlas-toolbar-side="inline-end"] {
+  border-inline-start: 1px solid var(--dv-border);
+}
+
+.dbc-view-shell .atlas-v2-toolbar-region {
+  width: 100%;
+}
 
 .dbc-view-shell .atlas-v2-toolbar button {
-    width: 1.9rem;
-    min-height: 2.7rem;
-    margin: 0.12rem auto;
-    overflow: hidden;
-    border: 0;
-    border-radius: 0.5rem;
-    padding: 0.25rem;
-    background: transparent;
-    color: var(--demo-chrome-ink);
-    font-weight: 700;
-    writing-mode: vertical-rl;
+  width: 1.875rem;
+  min-height: 0;
+  margin: 0.125rem auto;
+  overflow: hidden;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.5rem 0.1875rem;
+  background: transparent;
+  color: var(--dv-text-secondary);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
 }
 
-.dbc-view-shell .atlas-v2-toolbar button:hover,
+.dbc-view-shell .atlas-v2-toolbar button:hover {
+  background: var(--dv-hover);
+  color: var(--dv-text);
+}
+
 .dbc-view-shell .atlas-v2-toolbar button[aria-selected] {
-    background: var(--demo-surface);
-    color: var(--demo-accent);
-    box-shadow: 0 0.15rem 0 var(--demo-border);
+  background: var(--dv-selection);
+  color: var(--dv-text);
+  box-shadow: inset 2px 0 0 var(--dv-accent);
+}
+
+.dbc-view-shell .atlas-v2-toolbar-divider {
+  width: 1.25rem;
+  margin: 0.25rem auto;
+  border-block-start: 1px solid var(--dv-divider);
+  opacity: 1;
+}
+
+.dbc-view-shell .atlas-v2-toolbar-section-divider {
+  display: none;
+}
+
+/* 4px split tracks with a 1px visual line and a wide pointer target. */
+.dbc-view-shell .atlas-v2-splitter {
+  background: transparent;
+  color: var(--dv-border);
+  opacity: 1;
+}
+
+.dbc-view-shell .atlas-v2-splitter::after {
+  content: "";
+  position: absolute;
+  background: var(--dv-border);
+}
+
+.dbc-view-shell .atlas-v2-split-inline > .atlas-v2-splitter::after {
+  inset-block: 0;
+  inset-inline-start: 50%;
+  width: 1px;
+}
+
+.dbc-view-shell .atlas-v2-split-block > .atlas-v2-splitter::after {
+  inset-inline: 0;
+  inset-block-start: 50%;
+  height: 1px;
+}
+
+.dbc-view-shell .atlas-v2-splitter:hover,
+.dbc-view-shell .atlas-v2-split[data-atlas-resizing="true"] > .atlas-v2-splitter {
+  background: transparent;
+}
+
+.dbc-view-shell .atlas-v2-splitter:hover::after,
+.dbc-view-shell .atlas-v2-split[data-atlas-resizing="true"] > .atlas-v2-splitter::after {
+  background: var(--dv-accent);
+}
+
+.dbc-view-shell .atlas-v2-splitter:focus-visible {
+  outline: 2px solid var(--dv-focus);
+  outline-offset: 0;
+}
+
+.dbc-view-shell .atlas-v2-content-outlet:focus-visible {
+  outline: 2px solid var(--dv-focus);
+  outline-offset: -2px;
 }
 
 /* ============================================================
-   Demo chrome (topbar / statusbar) — demo-owned, no Atlas tokens.
-   Only real controls and real workspace state are shown.
+   Top toolbar (46px) — identity plus real Atlas layout history.
    ============================================================ */
 .dbc-view-topbar {
-    min-height: 2.65rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0 0.6rem;
-    background: var(--demo-accent);
-    border-bottom: 3px solid var(--demo-border);
-    color: var(--demo-accent-ink);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2.875rem;
+  box-sizing: border-box;
+  padding: 0 0.75rem;
+  background: var(--dv-chrome);
+  color: var(--dv-text);
 }
 
-.dbc-view-product {
-    width: 1.75rem;
-    height: 1.75rem;
-    display: grid;
-    flex: 0 0 auto;
-    place-items: center;
-    border: 2px solid var(--demo-border);
-    border-radius: 0.45rem;
-    background: linear-gradient(135deg, var(--demo-chrome), var(--demo-green) 48%, var(--demo-blue));
-    color: var(--demo-chrome-ink);
-    font-weight: 900;
-    box-shadow: 0 0.15rem 0 color-mix(in srgb, var(--demo-ink) 50%, transparent);
+.dbc-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.dbc-brand-mark {
+  display: grid;
+  width: 1.625rem;
+  height: 1.625rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--dv-accent);
+  color: var(--dv-on-accent);
 }
 
 .dbc-view-title {
-    flex: 1 1 auto;
-    overflow: hidden;
-    color: var(--demo-accent-ink);
-    font-weight: 800;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  overflow: hidden;
+  color: var(--dv-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.dbc-view-history {
-    display: flex;
-    align-items: center;
-    gap: 0.12rem;
+.dbc-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  margin-inline-start: auto;
 }
 
-.dbc-view-history button {
-    border: 2px solid transparent;
-    border-radius: 0.5rem;
-    padding: 0.25rem 0.55rem;
-    background: transparent;
-    color: var(--demo-accent-ink);
-    font-weight: 700;
+.dbc-icon-button {
+  display: inline-grid;
+  width: 1.875rem;
+  height: 1.875rem;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 0;
+  background: transparent;
+  color: var(--dv-text-secondary);
+  cursor: pointer;
 }
 
-.dbc-view-history button:not(:disabled):hover {
-    background: color-mix(in srgb, var(--demo-accent) 78%, black);
-    border-color: var(--demo-border);
+.dbc-icon-button:not(:disabled):hover {
+  border-color: var(--dv-border);
+  background: var(--dv-hover);
+  color: var(--dv-text);
 }
 
-.dbc-view-history button:disabled {
-    color: color-mix(in srgb, var(--demo-accent-ink) 60%, transparent);
+.dbc-icon-button:disabled {
+  color: var(--dv-text-disabled);
+  cursor: default;
 }
 
+/* ============================================================
+   Status bar (26px) — real operation, document, diagnostics and
+   revision state only.
+   ============================================================ */
 .dbc-view-statusbar {
-    min-height: 1.55rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0 0.65rem;
-    background: var(--demo-chrome);
-    border-top: 2px solid var(--demo-border);
-    color: var(--demo-chrome-ink);
-    font-size: 0.75rem;
-    font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  height: 1.625rem;
+  box-sizing: border-box;
+  padding: 0 0.75rem;
+  background: var(--dv-chrome);
+  color: var(--dv-text-secondary);
+  font-size: 0.6875rem;
+  line-height: 1;
 }
 
-.dbc-view-ok { color: var(--demo-ok-ink); }
+.dbc-statusbar-message {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dbc-statusbar-items {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  max-width: 62%;
+  margin-inline-start: auto;
+  overflow: hidden;
+  flex: 0 1 auto;
+}
+
+.dbc-statusbar-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.dbc-statusbar-item + .dbc-statusbar-item {
+  padding-inline-start: 0.625rem;
+  border-inline-start: 1px solid var(--dv-divider);
+}
+
+.dbc-statusbar-text {
+  overflow: hidden;
+  max-width: 18rem;
+  text-overflow: ellipsis;
+}
+
+.dbc-statusbar-diagnostic.is-error {
+  color: var(--dv-danger-text);
+}
+
+.dbc-statusbar-diagnostic.is-warning {
+  color: var(--dv-warning-text);
+}
 
 .dbc-view-verification {
-    width: 100vw;
-    height: 100vh;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.35rem;
-    overflow: hidden;
-    background: var(--demo-bg);
+  display: grid;
+  width: 100vw;
+  height: 100vh;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  background: var(--dv-border);
 }
 
 .dbc-view-verification > section {
-    min-width: 0;
-    min-height: 0;
-    overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--dv-bg);
 }
 
 /* ============================================================
-   DBC Explorer / editor / properties panels — demo content skin.
+   Shared panel primitives.
    ============================================================ */
-.dbc-tree, .dbc-editor, .dbc-property {
-    height: 100%;
-    min-width: 0;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    background: var(--demo-surface);
-    color: var(--demo-ink);
-    font-size: 0.85rem;
-}
-
-.dbc-tree { padding: 0.5rem 0; }
-.dbc-tree-actions { display: flex; gap: 0.4rem; padding: 0 0.6rem 0.3rem; align-items: center; }
-.dbc-upload-target {
-    margin: 0;
-    padding: 0 0.6rem 0.45rem;
-    color: var(--demo-muted);
-    font-size: 0.76rem;
-}
-
 .dbc-action {
-    background: var(--demo-chrome);
-    border: 2px solid var(--demo-border);
-    border-radius: 0.5rem;
-    color: var(--demo-chrome-ink);
-    padding: 0.25rem 0.6rem;
-    font-size: 0.8rem;
-    font-weight: 700;
-    cursor: pointer;
-    box-shadow: 0 0.15rem 0 color-mix(in srgb, var(--demo-ink) 40%, transparent);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 1.75rem;
+  box-sizing: border-box;
+  border: 1px solid var(--dv-border);
+  border-radius: 4px;
+  padding: 0 0.625rem;
+  background: var(--dv-surface);
+  color: var(--dv-text);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
-.dbc-action:hover { background: var(--demo-blue); color: var(--demo-blue-ink); }
-.dbc-action.primary { background: var(--demo-green); color: var(--demo-chrome-ink); }
-.dbc-action.active { background: var(--demo-accent); color: var(--demo-accent-ink); }
-.dbc-action.active:hover { background: color-mix(in srgb, var(--demo-accent) 82%, black); color: var(--demo-accent-ink); }
+.dbc-action:hover {
+  background: var(--dv-hover);
+}
+
+.dbc-action.primary {
+  border-color: var(--dv-accent);
+  background: var(--dv-accent);
+  color: var(--dv-on-accent);
+}
+
+.dbc-action.primary:hover {
+  border-color: var(--dv-accent-strong);
+  background: var(--dv-accent-strong);
+}
+
+.dbc-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  max-width: 17.5rem;
+  margin: auto;
+  padding: 1.5rem 1.25rem;
+  color: var(--dv-text-muted);
+}
+
+.dbc-empty-state .dbc-icon {
+  color: var(--dv-text-disabled);
+}
+
+.dbc-empty-title {
+  margin: 0;
+  color: var(--dv-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.dbc-empty-hint {
+  margin: 0;
+  color: var(--dv-text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.dbc-empty {
+  margin: 0;
+  padding: 0.5rem 0.625rem;
+  color: var(--dv-text-muted);
+  font-size: 0.75rem;
+}
+
+.dbc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--dv-accent);
+  font: inherit;
+  font-weight: 500;
+  text-align: start;
+  cursor: pointer;
+}
+
+.dbc-link:hover {
+  text-decoration: underline;
+}
+
+/* ============================================================
+   Explorer.
+   ============================================================ */
+.dbc-tree {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 0.5rem 0 0.75rem;
+  background: var(--dv-surface);
+  color: var(--dv-text);
+  font-size: 0.78125rem;
+}
+
+.dbc-tree-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+  padding: 0 0.5rem 0.375rem;
+}
 
 .dbc-upload {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    border-radius: 0.4rem;
-    color: var(--demo-muted);
-    cursor: pointer;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  cursor: pointer;
 }
 
-/* Visually hidden but still focusable, so keyboard users can open the
-   native file picker. The label shows the focus ring via :focus-within. */
+/* Visually hidden but focusable: the native picker stays keyboard
+   reachable and the label shows the focus ring through :focus-within. */
 .dbc-upload input[type="file"] {
-    position: absolute;
-    inline-size: 1px;
-    block-size: 1px;
-    margin: 0;
-    padding: 0;
-    border: 0;
-    opacity: 0;
-    overflow: hidden;
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  overflow: hidden;
 }
 
 .dbc-upload:focus-within {
-    outline: 3px solid currentColor;
-    outline-offset: 2px;
+  outline: 2px solid var(--dv-focus);
+  outline-offset: 2px;
 }
 
-.dbc-empty { padding: 0.75rem 0.9rem; color: var(--demo-muted); margin: 0; }
-.dbc-folder { margin-top: 0.15rem; }
+.dbc-upload-target {
+  margin: 0;
+  padding: 0 0.625rem 0.5rem;
+  color: var(--dv-text-muted);
+  font-size: 0.71875rem;
+  line-height: 1.4;
+}
+
+.dbc-upload-target strong {
+  color: var(--dv-text);
+  font-family: var(--dv-font-mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.dbc-folder {
+  margin-top: 0.125rem;
+}
 
 .dbc-folder-name,
 .dbc-file {
-    display: block;
-    width: 100%;
-    border: 0;
-    background: transparent;
-    color: var(--demo-ink);
-    font: inherit;
-    text-align: start;
-    cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  width: calc(100% - 0.5rem);
+  min-height: 1.625rem;
+  box-sizing: border-box;
+  margin: 0 0.25rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 0.1875rem 0.5rem;
+  background: transparent;
+  color: var(--dv-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
 }
 
 .dbc-folder-name {
-    padding: 0.3rem 0.6rem;
-    font-weight: 700;
-    border-radius: 0.4rem;
+  color: var(--dv-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 
-.dbc-folder-name:hover { background: var(--demo-hover); }
-.dbc-folder-name.selected { background: var(--demo-hover); box-shadow: inset 0.2rem 0 0 var(--demo-accent); }
+.dbc-folder-name:hover,
+.dbc-file:hover {
+  background: var(--dv-hover);
+  color: var(--dv-text);
+}
+
+.dbc-folder-name.selected {
+  background: var(--dv-selection);
+  color: var(--dv-text);
+}
+
+.dbc-folder-name.selected .dbc-tree-icon,
+.dbc-file.selected .dbc-tree-icon {
+  color: var(--dv-accent);
+}
 
 .dbc-file {
-    padding: 0.25rem 0.6rem 0.25rem 1.4rem;
-    border-left: 3px solid transparent;
+  padding-inline-start: 1.5rem;
+  font-size: 0.75rem;
+  font-weight: 400;
 }
-
-.dbc-file:hover { background: var(--demo-hover); }
 
 .dbc-file.selected {
-    background: var(--demo-selection);
-    color: var(--demo-selection-ink);
-    border-left-color: var(--demo-border);
-    border-radius: 0 0.4rem 0.4rem 0;
+  background: var(--dv-selection);
+  box-shadow: inset 2px 0 0 var(--dv-accent);
+  color: var(--dv-text);
 }
 
-.dbc-file.selected:hover { background: var(--demo-selection); }
-
-.dbc-editor-toolbar {
-    display: flex;
-    gap: 0.4rem;
-    padding: 0.5rem 0.6rem;
-    border-bottom: 2px solid var(--demo-border);
-    align-items: center;
-    background: var(--demo-chrome);
+.dbc-file.selected:hover {
+  background: var(--dv-selection);
 }
 
-.dbc-editor-file {
-    flex: 1;
-    color: var(--demo-chrome-ink);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-weight: 700;
+.dbc-tree-icon {
+  color: var(--dv-text-muted);
 }
 
-.dbc-editor-text { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-
-.dbc-textarea {
-    flex: 1;
-    min-height: 0;
-    resize: none;
-    border: 0;
-    border-radius: 0;
-    background: var(--demo-surface);
-    color: var(--demo-ink);
-    font: 0.8rem/1.6 "Cascadia Code", Consolas, monospace;
-    padding: 0.6rem 0.8rem;
+.dbc-tree-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.dbc-editor-actions { padding: 0.45rem 0.6rem; border-top: 2px solid var(--demo-border); }
-.dbc-editor-table { flex: 1; overflow: auto; min-height: 0; }
-
-.dbc-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-
-.dbc-table th,
-.dbc-table td {
-    padding: 0.3rem 0.6rem;
-    text-align: left;
-    border-bottom: 1px solid var(--demo-border);
-    white-space: nowrap;
+.dbc-tree button:focus-visible {
+  outline-offset: -2px;
 }
 
-.dbc-table th {
-    position: sticky;
-    top: 0;
-    background: var(--demo-blue);
-    color: var(--demo-blue-ink);
-    font-weight: 700;
-}
-
-.dbc-signal-row td { color: var(--demo-muted); }
-
-.dbc-link {
-    background: none;
-    border: 0;
-    color: var(--demo-accent);
-    cursor: pointer;
-    padding: 0;
-    font: inherit;
-    text-align: left;
-    font-weight: 700;
-}
-
-.dbc-link:hover { text-decoration: underline; }
-
-.dbc-property { padding: 0.6rem 0.8rem; gap: 0.6rem; }
-
-.dbc-property-header {
-    display: flex;
-    gap: 0.5rem;
-    align-items: baseline;
-    border-bottom: 2px solid var(--demo-border);
-    padding-bottom: 0.5rem;
-}
-
-.dbc-property-type {
-    color: var(--demo-accent);
-    font-size: 0.72rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    font-weight: 800;
-}
-
-.dbc-property-name { font-weight: 800; color: var(--demo-ink); }
-.dbc-property-list { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 0.8rem; }
-.dbc-property-list dt { color: var(--demo-muted); }
-.dbc-property-list dd { margin: 0; color: var(--demo-ink); }
-
-/* ============================================================
-   Diagnostics and upload feedback.
-   ============================================================ */
 .dbc-tree-message,
 .dbc-alert {
-    margin: 0.3rem 0.6rem;
-    padding: 0.45rem 0.6rem;
-    border: 2px solid currentColor;
-    border-radius: 0.5rem;
-    font-size: 0.78rem;
-    background: var(--demo-success-bg);
-    color: var(--demo-success-ink);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0.5rem 0.625rem 0;
+  border: 1px solid var(--dv-success);
+  border-radius: 4px;
+  padding: 0.5rem 0.625rem;
+  background: var(--dv-success-bg);
+  color: var(--dv-success-text);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.dbc-tree-message {
+  margin: 0 0.5rem 0.5rem;
 }
 
 .dbc-tree-message.error,
 .dbc-alert.error {
-    background: var(--demo-error-bg);
-    color: var(--demo-error-ink);
+  border-color: var(--dv-danger);
+  background: var(--dv-danger-bg);
+  color: var(--dv-danger-text);
 }
 
 .dbc-alert.warning {
-    background: var(--demo-warning-bg);
-    color: var(--demo-warning-ink);
+  border-color: var(--dv-warning);
+  background: var(--dv-warning-bg);
+  color: var(--dv-warning-text);
 }
 
 .dbc-alert.success {
-    background: var(--demo-success-bg);
-    color: var(--demo-success-ink);
+  border-color: var(--dv-success);
+  background: var(--dv-success-bg);
+  color: var(--dv-success-text);
 }
 
-.dbc-alert-title { margin: 0; font-weight: 800; }
+.dbc-alert-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.dbc-alert-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.dbc-tree-message > span,
+.dbc-alert > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.dbc-tree > .dbc-empty-state {
+  max-width: none;
+  margin: 0.5rem 0 0;
+  padding: 0.75rem 0.625rem;
+}
 
 .dbc-diagnostics {
-    margin: 0.3rem 0 0;
-    padding-inline-start: 1.1rem;
-    display: grid;
-    gap: 0.15rem;
+  display: grid;
+  gap: 0.1875rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.dbc-diagnostic-code { font-weight: 800; margin-inline-end: 0.3rem; }
+.dbc-diagnostic {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.dbc-diagnostic-code {
+  flex: 0 0 auto;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  padding: 0 0.25rem;
+  font-family: var(--dv-font-mono);
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.dbc-diagnostic > span:last-child {
+  overflow-wrap: anywhere;
+}
 
 /* ============================================================
-   Compact layout (<= 700px): a single reachable panel plus an
-   explicit Explorer / Editor / Properties switcher. The wide
-   three-column layout is replaced, not hidden behind overflow.
+   Editor.
+   ============================================================ */
+.dbc-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: var(--dv-surface);
+  color: var(--dv-text);
+  font-size: 0.78125rem;
+}
+
+.dbc-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.375rem;
+  box-sizing: border-box;
+  padding: 0 0.625rem;
+  border-bottom: 1px solid var(--dv-divider);
+  background: var(--dv-chrome);
+}
+
+.dbc-editor-file {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dv-text-secondary);
+  font-family: var(--dv-font-mono);
+  font-size: 0.71875rem;
+  font-weight: 500;
+}
+
+.dbc-editor-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dbc-segmented {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 0.125rem;
+  border: 1px solid var(--dv-border);
+  border-radius: 5px;
+  padding: 0.125rem;
+  background: var(--dv-sunken);
+}
+
+.dbc-segmented button {
+  height: 1.5rem;
+  border: 0;
+  border-radius: 3px;
+  padding: 0 0.625rem;
+  background: transparent;
+  color: var(--dv-text-secondary);
+  font-size: 0.71875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.dbc-segmented button:hover {
+  color: var(--dv-text);
+}
+
+.dbc-segmented button[aria-pressed="true"] {
+  background: var(--dv-surface);
+  color: var(--dv-accent);
+  box-shadow: 0 0 0 1px var(--dv-border);
+  font-weight: 600;
+}
+
+.dbc-editor-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.dbc-textarea {
+  flex: 1 1 auto;
+  min-height: 0;
+  resize: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0.75rem 1rem;
+  background: var(--dv-surface);
+  color: var(--dv-text);
+  font-family: var(--dv-font-mono);
+  font-size: 0.78125rem;
+  line-height: 1.65;
+  tab-size: 4;
+}
+
+.dbc-textarea:focus-visible {
+  outline: 2px solid var(--dv-focus);
+  outline-offset: -2px;
+}
+
+.dbc-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--dv-divider);
+  background: var(--dv-chrome);
+}
+
+.dbc-editor-table {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  background: var(--dv-surface);
+}
+
+.dbc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.dbc-table th,
+.dbc-table td {
+  padding: 0.25rem 0.625rem;
+  border-bottom: 1px solid var(--dv-divider);
+  text-align: start;
+  white-space: nowrap;
+}
+
+.dbc-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-bottom: 1px solid var(--dv-border);
+  background: var(--dv-sunken);
+  color: var(--dv-text-secondary);
+  font-size: 0.65625rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dbc-table tbody tr:hover {
+  background: var(--dv-hover);
+}
+
+.dbc-message-row td {
+  min-height: 1.75rem;
+}
+
+.dbc-message-row td:first-child,
+.dbc-message-row td:nth-child(3) {
+  color: var(--dv-text-secondary);
+  font-family: var(--dv-font-mono);
+  font-size: 0.71875rem;
+}
+
+.dbc-signal-row td {
+  color: var(--dv-text-secondary);
+  font-size: 0.71875rem;
+}
+
+.dbc-signal-row td:nth-child(2) {
+  padding-inline-start: 1.75rem;
+}
+
+.dbc-signal-link {
+  color: var(--dv-text-secondary);
+  font-weight: 400;
+}
+
+.dbc-signal-link:hover {
+  color: var(--dv-text);
+}
+
+.dbc-message-row .dbc-link {
+  max-width: 24rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============================================================
+   Properties.
+   ============================================================ */
+.dbc-property {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 0.75rem;
+  background: var(--dv-surface);
+  color: var(--dv-text);
+  font-size: 0.78125rem;
+}
+
+.dbc-property-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-bottom: 0.625rem;
+  border-bottom: 1px solid var(--dv-divider);
+}
+
+.dbc-property-type {
+  color: var(--dv-text-muted);
+  font-size: 0.65625rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dbc-property-name {
+  overflow-wrap: anywhere;
+  color: var(--dv-text);
+  font-family: var(--dv-font-mono);
+  font-size: 0.78125rem;
+  font-weight: 600;
+}
+
+.dbc-property-list {
+  display: grid;
+  grid-template-columns: minmax(4.5rem, max-content) minmax(0, 1fr);
+  gap: 0.375rem 0.75rem;
+  align-items: baseline;
+  margin: 0;
+}
+
+.dbc-property-list dt {
+  color: var(--dv-text-muted);
+  font-size: 0.71875rem;
+}
+
+.dbc-property-list dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--dv-text);
+  font-family: var(--dv-font-mono);
+  font-size: 0.75rem;
+}
+
+/* ============================================================
+   Compact layout (<= 700px): one reachable panel plus an explicit
+   Explorer / Editor / Properties switcher. The wide three-column
+   layout is replaced, not hidden behind overflow.
    ============================================================ */
 .dbc-compact-nav {
-    display: none;
-    gap: 0.25rem;
-    padding: 0.3rem 0.4rem;
-    background: var(--demo-chrome);
-    border-bottom: 2px solid var(--demo-border);
-}
-
-.dbc-compact-nav button {
-    flex: 1 1 0;
-    min-width: 0;
-    border: 2px solid var(--demo-border);
-    border-radius: 0.4rem;
-    padding: 0.3rem 0.2rem;
-    background: var(--demo-surface);
-    color: var(--demo-ink);
-    font-size: 0.78rem;
-    font-weight: 700;
-}
-
-.dbc-compact-nav button[aria-pressed="true"] {
-    background: var(--demo-accent);
-    color: var(--demo-accent-ink);
+  display: none;
 }
 
 @media (max-width: 700px) {
-    .dbc-view-shell {
-        display: flex;
-        flex-direction: column;
-    }
+  .dbc-compact-nav {
+    display: flex;
+    gap: 0.125rem;
+    height: 2.375rem;
+    box-sizing: border-box;
+    padding: 0 0.5rem;
+    border-bottom: 1px solid var(--dv-border);
+    background: var(--dv-chrome);
+  }
 
-    .dbc-compact-nav { display: flex; }
+  .dbc-compact-nav button {
+    flex: 1 1 0;
+    min-width: 0;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    padding: 0 0.25rem;
+    background: transparent;
+    color: var(--dv-text-secondary);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+  }
 
-    .dbc-view-shell > .atlas-v2-workspace {
-        flex: 1 1 auto;
-        height: auto;
-        min-height: 0;
-    }
+  .dbc-compact-nav button:hover {
+    color: var(--dv-text);
+  }
 
-    .dbc-view-shell .atlas-v2-work-area {
-        grid-template-columns: minmax(0, 1fr);
-    }
+  .dbc-compact-nav button[aria-pressed="true"] {
+    border-bottom-color: var(--dv-accent);
+    color: var(--dv-text);
+    font-weight: 600;
+  }
 
-    .dbc-view-shell .atlas-v2-toolbar { display: none; }
-    .dbc-view-shell .atlas-v2-split { display: contents; }
-    .dbc-view-shell .atlas-v2-splitter { display: none; }
-    .dbc-view-shell .atlas-v2-group { display: none; visibility: visible; }
+  .dbc-view-shell > .atlas-v2-workspace {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+  }
 
-    .dbc-view-shell .atlas-v2-split[data-atlas-split-hidden],
-    .dbc-view-shell .atlas-v2-group-collapsed {
-        visibility: visible;
-    }
+  .dbc-view-shell .atlas-v2-work-area {
+    grid-template-columns: minmax(0, 1fr);
+  }
 
-    .dbc-view-shell[data-compact-active="explorer"] [data-atlas-group-id="left-upper"],
-    .dbc-view-shell[data-compact-active="editor"] [data-atlas-group-id="editor"],
-    .dbc-view-shell[data-compact-active="properties"] [data-atlas-group-id="right-upper"] {
-        display: grid;
-    }
+  .dbc-view-shell .atlas-v2-toolbar {
+    display: none;
+  }
 
-    .dbc-view-verification {
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: 100vh 100vh;
-        overflow-y: auto;
-    }
+  .dbc-view-shell .atlas-v2-split {
+    display: contents;
+  }
 
-    .dbc-view-topbar { gap: 0.25rem; padding-inline: 0.35rem; }
-    .dbc-view-statusbar { padding-inline: 0.4rem; }
+  .dbc-view-shell .atlas-v2-splitter {
+    display: none;
+  }
+
+  .dbc-view-shell .atlas-v2-group {
+    display: none;
+    visibility: visible;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .dbc-view-shell .atlas-v2-split[data-atlas-split-hidden],
+  .dbc-view-shell .atlas-v2-group-collapsed {
+    visibility: visible;
+  }
+
+  .dbc-view-shell[data-compact-active="explorer"] [data-atlas-group-id="left-upper"],
+  .dbc-view-shell[data-compact-active="editor"] [data-atlas-group-id="editor"],
+  .dbc-view-shell[data-compact-active="properties"] [data-atlas-group-id="right-upper"] {
+    display: grid;
+  }
+
+  .dbc-view-verification {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 100vh 100vh;
+    overflow-y: auto;
+  }
+
+  .dbc-view-topbar {
+    gap: 0.375rem;
+    padding-inline: 0.5rem;
+  }
+
+  .dbc-view-statusbar {
+    gap: 0.5rem;
+    padding-inline: 0.5rem;
+  }
+
+  .dbc-statusbar-items {
+    max-width: 58%;
+  }
 }
 
-@media (max-width: 380px) {
-    .dbc-view-title { font-size: 0.9rem; }
-    .dbc-compact-nav button { font-size: 0.72rem; }
+@media (max-width: 480px) {
+  .dbc-view-title {
+    font-size: 0.75rem;
+  }
+
+  .dbc-view-statusbar {
+    font-size: 0.65625rem;
+  }
+
+  /* The operation message already carries the opened path on phones; keep
+     diagnostics and revision visible instead of clipping the row. */
+  .dbc-statusbar-document {
+    display: none;
+  }
+
+  .dbc-statusbar-text {
+    max-width: 6rem;
+  }
+
+  .dbc-statusbar-items {
+    gap: 0.375rem;
+    max-width: 62%;
+  }
+
+  .dbc-statusbar-item + .dbc-statusbar-item {
+    padding-inline-start: 0.375rem;
+  }
+
+  .dbc-editor-toolbar {
+    gap: 0.375rem;
+    padding-inline: 0.5rem;
+  }
+
+  .dbc-segmented button {
+    padding-inline: 0.5rem;
+  }
+
+  .dbc-action {
+    padding-inline: 0.5rem;
+    font-size: 0.71875rem;
+  }
+
+  .dbc-tree-actions {
+    gap: 0.25rem;
+  }
+
+  .dbc-compact-nav button {
+    font-size: 0.71875rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dbc-view-shell *,
+  .dbc-view-shell *::before,
+  .dbc-view-shell *::after {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+  }
 }

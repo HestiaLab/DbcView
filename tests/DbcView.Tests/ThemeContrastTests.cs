@@ -6,27 +6,37 @@ using Xunit;
 namespace DbcView.Tests;
 
 /// <summary>
-/// Guards the light/dark palette tokens against WCAG AA regressions:
-/// normal text >= 4.5:1, UI indicators >= 3:1.
+/// Guards the light/dark token layer against WCAG AA regressions:
+/// body text >= 4.5:1, UI indicators and focus rings >= 3:1.
 /// </summary>
 public sealed class ThemeContrastTests
 {
     private static readonly (string Foreground, string Background, double Minimum)[] TextPairs =
     {
-        ("accent", "accent-ink", 4.5),
-        ("blue", "blue-ink", 4.5),
-        ("selection", "selection-ink", 4.5),
-        ("ink", "surface", 4.5),
-        ("muted", "surface", 4.5),
-        ("chrome-ink", "chrome", 4.5),
-        ("error-ink", "error-bg", 4.5),
-        ("warning-ink", "warning-bg", 4.5),
-        ("success-ink", "success-bg", 4.5),
+        ("text", "surface", 4.5),
+        ("text", "bg", 4.5),
+        ("text", "chrome", 4.5),
+        ("text", "selection", 4.5),
+        ("text-secondary", "surface", 4.5),
+        ("text-muted", "surface", 4.5),
+        ("on-accent", "accent", 4.5),
+        ("on-accent", "accent-strong", 4.5),
+        ("danger-text", "danger-bg", 4.5),
+        ("warning-text", "warning-bg", 4.5),
+        ("success-text", "success-bg", 4.5),
     };
 
     private static readonly (string Foreground, string Background, double Minimum)[] IndicatorPairs =
     {
-        ("ok-ink", "chrome", 3.0),
+        ("accent", "surface", 3.0),
+        ("accent", "chrome", 3.0),
+        ("accent", "bg", 3.0),
+        ("focus", "surface", 3.0),
+        ("focus", "chrome", 3.0),
+        ("focus", "bg", 3.0),
+        ("danger", "surface", 3.0),
+        ("warning", "surface", 3.0),
+        ("success", "surface", 3.0),
     };
 
     [Fact]
@@ -48,17 +58,44 @@ public sealed class ThemeContrastTests
     }
 
     [Fact]
+    public void Theme_exposes_every_required_semantic_token()
+    {
+        foreach (var dark in new[] { false, true })
+        {
+            var tokens = ReadTokens(ReadStylesheet(), dark);
+
+            var required = new[]
+            {
+                "bg", "surface", "chrome", "sunken",
+                "text", "text-secondary", "text-muted", "text-disabled",
+                "border", "divider",
+                "accent", "accent-strong", "on-accent",
+                "hover", "selection", "focus",
+                "danger", "danger-bg", "danger-text",
+                "warning", "warning-bg", "warning-text",
+                "success", "success-bg", "success-text",
+            };
+
+            foreach (var name in required)
+            {
+                Assert.True(tokens.ContainsKey(name), $"Missing token --dv-{name} (dark: {dark}).");
+            }
+        }
+    }
+
+    [Fact]
     public void Interactive_rules_use_the_contrast_checked_tokens()
     {
         var css = ReadStylesheet();
 
-        Assert.Contains("color: var(--demo-selection-ink)", css, StringComparison.Ordinal);
-        Assert.Contains("background: var(--demo-selection)", css, StringComparison.Ordinal);
-        Assert.Contains("background: var(--demo-blue)", css, StringComparison.Ordinal);
-        Assert.Contains("color: var(--demo-blue-ink)", css, StringComparison.Ordinal);
+        Assert.Contains("background: var(--dv-selection)", css, StringComparison.Ordinal);
+        Assert.Contains("box-shadow: inset 2px 0 0 var(--dv-accent)", css, StringComparison.Ordinal);
+        Assert.Contains("background: var(--dv-accent)", css, StringComparison.Ordinal);
+        Assert.Contains("color: var(--dv-on-accent)", css, StringComparison.Ordinal);
+        Assert.Contains("outline: 2px solid var(--dv-focus)", css, StringComparison.Ordinal);
         Assert.Contains(".dbc-upload:focus-within", css, StringComparison.Ordinal);
         Assert.Contains(":focus-visible", css, StringComparison.Ordinal);
-        Assert.Contains("outline: 3px solid currentColor", css, StringComparison.Ordinal);
+        Assert.DoesNotContain("--demo-", css, StringComparison.Ordinal);
     }
 
     private static void AssertPairs(
@@ -92,8 +129,8 @@ public sealed class ThemeContrastTests
 
         foreach (var (foreground, background, _) in TextPairs.Concat(IndicatorPairs))
         {
-            Assert.True(tokens.ContainsKey(foreground), $"Missing token --demo-{foreground}.");
-            Assert.True(tokens.ContainsKey(background), $"Missing token --demo-{background}.");
+            Assert.True(tokens.ContainsKey(foreground), $"Missing token --dv-{foreground}.");
+            Assert.True(tokens.ContainsKey(background), $"Missing token --dv-{background}.");
         }
 
         return tokens;
@@ -104,7 +141,7 @@ public sealed class ThemeContrastTests
         var tokens = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (Match match in Regex.Matches(
                      css,
-                     @"--demo-(?<name>[a-z-]+):\s*(?<value>#[0-9a-fA-F]{6})\s*;"))
+                     @"--dv-(?<name>[a-z-]+):\s*(?<value>#[0-9a-fA-F]{6})\s*;"))
         {
             tokens[match.Groups["name"].Value] = match.Groups["value"].Value;
         }

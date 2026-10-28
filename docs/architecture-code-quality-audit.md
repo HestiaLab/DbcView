@@ -589,3 +589,16 @@ Q-04/Q-14 作为独立依赖轨道执行：先验证 Atlas 兼容性，升级目
 ### 14.6 交付结论
 
 28 项问题全部完成代码整改，PR #9 的 Ubuntu/Windows build、format、看板自动化均通过。P0=0、P1=4/4、P2=12/12、P3=12/12 均已关闭，无因代码原因遗留的阻塞项；剩余风险集中在 deploy/Pages 与真实 fork PR 尚未触发、Atlas 指针控制器的 bUnit 不可模拟性和 Atlas 对 .NET 10 的非声明式兼容。
+
+## 15. UI 重设计记录（2026-10-28）
+
+在 `main` / `b1b11a1` 基础上完成一次独立的表现层重设计，未修改 Domain / Application 公共契约、Atlas 消费边界和历史审计正文。
+
+- 以 `--dv-*` 语义令牌替换卡通 `--demo-*` 皮肤：中性 surface/border/text、单一蓝色强调色、语义化 error/warning/success、浅色与深色两套映射；正文对比度 ≥4.5:1，交互指示与焦点环 ≥3:1。
+- 顶栏压缩为 46px，只保留产品标识与来自 Atlas 工作区历史的 Undo/Redo（按 CanUndo/CanRedo 禁用）；状态栏压缩为 26px，只显示真实操作消息、当前文档完整路径、解析错误/警告数量与 Atlas Revision。删除 File/Edit/View/Navigate/Code/Run、Search/Debug、分支/编码/缩进等占位。
+- Explorer 使用 inline SVG 图标与原生按钮；Editor 使用 Text/Table 分段控件、中性表头与可选消息/信号行；Properties 使用 label/value 布局；空状态只提供说明和真实入口。
+- 当前文档、诊断数量、Revision 和 Properties 目标均由 `DbcFileWorkspace`、Atlas 快照及 ItemActivated/ItemClosed 事件派生并随状态更新；窄屏切换器保留，并修正 375/320px 下状态栏与工作区被 min-content 撑宽后裁切的问题。
+- 测试增至 113 项并通过，新增顶栏/状态栏占位清理、真实状态变化、图标语义、令牌覆盖与双主题对比度回归；Atlas JS 测试桩补齐 `SetVoidResult`，使重复渲染同步可安全断言。
+- 真实 Chromium 验证：BMW 样本 325 消息/130 信号、属性、文本保存、非法与超限上传、键盘上传/打开、320/375/620/1440px、浅/深主题及 `/verification` 双主机；页面与 `/verification` 控制台无错误。
+
+本节只补充 UI 重设计事实，不改变第 1–14 节的审计结论与整改状态。

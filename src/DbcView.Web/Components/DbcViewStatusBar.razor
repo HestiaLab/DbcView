@@ -1,9 +1,55 @@
 <footer class="dbc-view-statusbar" data-testid="dbc-view-status-bar" role="status" aria-live="polite">
-    <span class="dbc-view-ok" aria-hidden="true">●</span>
-    <span>@OperationStatus</span>
+    <span class="dbc-statusbar-message" title="@OperationStatus">@OperationStatus</span>
+    <span class="dbc-statusbar-items">
+        @if (ErrorCount > 0)
+        {
+            <span class="dbc-statusbar-item dbc-statusbar-diagnostic is-error"
+                  data-testid="dbc-status-errors"
+                  title="@ErrorCount parse error(s) in the open document">
+                <DbcIcon Name="error" Size="12" />
+                <span>@ErrorCount @(ErrorCount == 1 ? "error" : "errors")</span>
+            </span>
+        }
+        @if (WarningCount > 0)
+        {
+            <span class="dbc-statusbar-item dbc-statusbar-diagnostic is-warning"
+                  data-testid="dbc-status-warnings"
+                  title="@WarningCount parse warning(s) in the open document">
+                <DbcIcon Name="warning" Size="12" />
+                <span>@WarningCount @(WarningCount == 1 ? "warning" : "warnings")</span>
+            </span>
+        }
+        @if (!string.IsNullOrEmpty(Document))
+        {
+            <span class="dbc-statusbar-item dbc-statusbar-document" data-testid="dbc-status-document" title="@Document">
+                <DbcIcon Name="file" Size="12" />
+                <span class="dbc-statusbar-text">@Document</span>
+            </span>
+        }
+        @if (Revision > 0)
+        {
+            <span class="dbc-statusbar-item" data-testid="dbc-status-revision">
+                <span>Revision @Revision</span>
+            </span>
+        }
+    </span>
 </footer>
 
 @code {
     [Parameter]
     public string OperationStatus { get; set; } = "Ready";
+
+    /// <summary>Full document key (folder/file) of the active editor tab.</summary>
+    [Parameter]
+    public string? Document { get; set; }
+
+    /// <summary>Revision of the Atlas workspace snapshot.</summary>
+    [Parameter]
+    public long Revision { get; set; }
+
+    [Parameter]
+    public int ErrorCount { get; set; }
+
+    [Parameter]
+    public int WarningCount { get; set; }
 }

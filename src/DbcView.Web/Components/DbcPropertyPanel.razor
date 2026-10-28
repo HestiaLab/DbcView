@@ -5,7 +5,11 @@
 <div class="dbc-property" data-testid="dbc-property" aria-label="DBC properties">
     @if (Model.TargetType is null)
     {
-        <p class="dbc-empty">Select a file, message, or signal to inspect.</p>
+        <div class="dbc-empty-state">
+            <DbcIcon Name="sliders" Size="22" />
+            <p class="dbc-empty-title">Nothing selected</p>
+            <p class="dbc-empty-hint">Select a file, message, or signal to inspect.</p>
+        </div>
     }
     else
     {

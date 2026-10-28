@@ -233,6 +233,25 @@ public sealed class DbcPanelsTests : BunitContext
     }
 
     [Fact]
+    public void TreePanel_uses_accessible_inline_svg_icons_instead_of_emoji()
+    {
+        using var workspace = TestWorkspace.Create();
+        workspace.AddFile("can-a", "a.dbc", ValidDbc);
+        var model = new DbcTreeModel(workspace);
+        var cut = Render<DbcTreePanel>(p => p.Add(x => x.Model, model));
+
+        Assert.DoesNotContain("📁", cut.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("📄", cut.Markup, StringComparison.Ordinal);
+
+        var folderIcon = cut.Find("[data-testid='dbc-folder'] svg");
+        var fileIcon = cut.Find("[data-testid='dbc-file'] svg");
+        Assert.Equal("true", folderIcon.GetAttribute("aria-hidden"));
+        Assert.Equal("true", fileIcon.GetAttribute("aria-hidden"));
+        Assert.Contains("can-a", cut.Find("[data-testid='dbc-folder']").TextContent, StringComparison.Ordinal);
+        Assert.Contains("a.dbc", cut.Find("[data-testid='dbc-file']").TextContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TreePanel_file_selection_sets_aria_pressed()
     {
         using var workspace = TestWorkspace.Create();
@@ -260,9 +279,15 @@ public sealed class DbcPanelsTests : BunitContext
 
         // Table view is the default; the message row renders.
         Assert.Contains("EmptyMsg", cut.Markup, StringComparison.Ordinal);
+        Assert.Equal("true", cut.Find("[data-testid='dbc-mode-table']").GetAttribute("aria-pressed"));
+        Assert.Equal("false", cut.Find("[data-testid='dbc-mode-text']").GetAttribute("aria-pressed"));
+        var viewGroup = cut.Find(".dbc-segmented");
+        Assert.Equal("group", viewGroup.GetAttribute("role"));
+        Assert.Equal("Editor view", viewGroup.GetAttribute("aria-label"));
 
         cut.Find("[data-testid='dbc-mode-text']").Click();
         Assert.Contains("VERSION", cut.Markup, StringComparison.Ordinal);
+        Assert.Equal("true", cut.Find("[data-testid='dbc-mode-text']").GetAttribute("aria-pressed"));
 
         cut.Find("[data-testid='dbc-mode-table']").Click();
         Assert.Contains("EmptyMsg", cut.Markup, StringComparison.Ordinal);

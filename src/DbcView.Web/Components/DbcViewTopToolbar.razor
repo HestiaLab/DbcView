@@ -1,9 +1,27 @@
 <header class="dbc-view-topbar" data-testid="dbc-view-top-toolbar">
-    <div class="dbc-view-product" aria-hidden="true">A</div>
-    <span class="dbc-view-title">DbcView</span>
-    <div class="dbc-view-history" aria-label="Layout history">
-        <button type="button" disabled="@(!CanUndo)" @onclick="OnUndo" aria-label="Undo layout change">↶</button>
-        <button type="button" disabled="@(!CanRedo)" @onclick="OnRedo" aria-label="Redo layout change">↷</button>
+    <div class="dbc-brand">
+        <span class="dbc-brand-mark">
+            <DbcIcon Name="database" Size="16" />
+        </span>
+        <span class="dbc-view-title">DbcView</span>
+    </div>
+    <div class="dbc-topbar-actions" role="group" aria-label="Layout history">
+        <button type="button"
+                class="dbc-icon-button"
+                disabled="@(!CanUndo)"
+                @onclick="OnUndo"
+                aria-label="Undo layout change"
+                title="Undo layout change">
+            <DbcIcon Name="undo" Size="16" />
+        </button>
+        <button type="button"
+                class="dbc-icon-button"
+                disabled="@(!CanRedo)"
+                @onclick="OnRedo"
+                aria-label="Redo layout change"
+                title="Redo layout change">
+            <DbcIcon Name="redo" Size="16" />
+        </button>
     </div>
 </header>
 
