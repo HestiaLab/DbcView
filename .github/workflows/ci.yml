@@ -53,6 +53,71 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          dotnet-version: '10.0.x'
+      - name: Install wasm-tools
+        run: dotnet workload install wasm-tools
+      - run: dotnet restore DbcView.sln
+      - name: Publish AOT
+        run: >
+          dotnet publish src/DbcView.Web/DbcView.Web.csproj
+          --configuration Release -p:RunAOTCompilation=true -o publish-aot
+      - name: Assert AOT publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          native=$(find publish-aot/wwwroot/_framework -maxdepth 1 -name 'dotnet.native.*.wasm' -print -quit)
+          if [ -z "$native" ]; then
+            echo "::error::AOT native runtime is missing from the publish output"
+            exit 1
+          fi
+          size=$(stat -c%s "$native")
+          if [ "$size" -lt 10000000 ]; then
+            echo "::error::AOT publish not detected (native runtime is only $size bytes)"
+            exit 1
+          fi
+          if [ ! -f "publish-aot/wwwroot/_content/Astrea.Components/astrea-tree.css" ]; then
+            echo "::error::Astrea tree asset is missing from the publish output"
+            exit 1
+          fi
+      - name: Restore browser tests
+        run: dotnet restore tests/DbcView.BrowserTests/DbcView.BrowserTests.csproj
+      - name: Build browser tests
+        run: >
+          dotnet build tests/DbcView.BrowserTests/DbcView.BrowserTests.csproj
+          --no-restore --configuration Release
+      - name: Install Chromium
+        run: pwsh tests/DbcView.BrowserTests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+      - name: Run browser tests against AOT
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/DbcView.BrowserTests/serve-aot.js publish-aot/wwwroot 5210 > aot-server.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+            cat aot-server.log
+          }
+          trap cleanup EXIT
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:5210/ >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          if ! curl -fsS http://127.0.0.1:5210/ >/dev/null; then
+            echo "::error::AOT static server did not start"
+            exit 1
+          fi
+          DBCVIEW_BASE_URL=http://127.0.0.1:5210 \
+            dotnet test tests/DbcView.BrowserTests/DbcView.BrowserTests.csproj \
+            --no-build --no-restore --configuration Release --verbosity normal
+
   format:
     runs-on: ubuntu-latest
     steps:
@@ -61,4 +126,8 @@ jobs:
         with:
           dotnet-version: '10.0.x'
       - run: dotnet restore DbcView.sln
+      - run: dotnet restore tests/DbcView.BrowserTests/DbcView.BrowserTests.csproj
       - run: dotnet format DbcView.sln --verify-no-changes --no-restore --verbosity minimal
+      - run: >
+          dotnet format tests/DbcView.BrowserTests/DbcView.BrowserTests.csproj
+          --verify-no-changes --no-restore --verbosity minimal

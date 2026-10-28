@@ -91,6 +91,7 @@ public sealed class WorkflowPolicyTests
             StringComparison.Ordinal);
         Assert.Contains("_framework/blazor.webassembly.js", text, StringComparison.Ordinal);
         Assert.Contains("_content/Atlas.Blazor/atlas-v2/atlas.css", text, StringComparison.Ordinal);
+        Assert.Contains("_content/Astrea.Components/astrea-tree.css", text, StringComparison.Ordinal);
         Assert.Contains("exit 1", text, StringComparison.Ordinal);
     }
 

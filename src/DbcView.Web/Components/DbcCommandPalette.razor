@@ -1,0 +1,387 @@
+@namespace DbcView.Web.Components
+@using System.Globalization
+@using DbcView.Web.ViewModels
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<dialog class="dbc-palette"
+        data-testid="dbc-command-palette"
+        aria-label="Search messages and signals"
+        @ref="_dialog"
+        @onclose="OnDialogClosed">
+    <div class="dbc-palette-body">
+        <div class="dbc-palette-search">
+            <DbcIcon Name="search" Size="16" />
+            <input @ref="_input"
+                   class="dbc-palette-input"
+                   data-testid="dbc-palette-input"
+                   type="text"
+                   role="combobox"
+                   aria-label="Search messages and signals"
+                   aria-expanded="@(Model.ResultCount > 0 ? "true" : "false")"
+                   aria-controls="@(Model.ResultCount > 0 ? "dbc-palette-results" : null)"
+                   aria-autocomplete="list"
+                   aria-activedescendant="@ActiveDescendant"
+                   placeholder="Search messages, signals, IDs, transmitter or receiver"
+                   value="@Model.Query"
+                   @oninput="OnInput"
+                   @onkeydown="OnKeyDown" />
+            <button type="button"
+                    class="dbc-icon-button"
+                    data-testid="dbc-palette-close"
+                    aria-label="Close search"
+                    title="Close search"
+                    @onclick="CloseAsync">
+                <DbcIcon Name="close" Size="14" />
+            </button>
+        </div>
+
+        @if (!Model.HasQuery)
+        {
+            <p class="dbc-palette-hint" data-testid="dbc-palette-hint">
+                Type a message or signal name, a decimal/0x ID, a transmitter, or a receiver.
+            </p>
+        }
+        else if (Model.ResultCount == 0)
+        {
+            <p class="dbc-palette-hint" data-testid="dbc-palette-empty">No matches.</p>
+        }
+        else
+        {
+            <div id="dbc-palette-results"
+                 class="dbc-palette-results"
+                 role="listbox"
+                 aria-label="Search results">
+                @if (Model.MessageResults.Count > 0)
+                {
+                    <div role="group" aria-labelledby="dbc-palette-messages">
+                        <div id="dbc-palette-messages" class="dbc-palette-group" role="presentation">
+                            Messages
+                        </div>
+                        @for (var index = 0; index < Model.MessageResults.Count; index++)
+                        {
+                            var optionIndex = index;
+                            var result = Model.MessageResults[index];
+                            var active = optionIndex == _activeIndex;
+                            <div id="@OptionId(optionIndex)"
+                                 role="option"
+                                 aria-selected="@(active ? "true" : "false")"
+                                 class="@(active ? "dbc-palette-option is-active" : "dbc-palette-option")"
+                                 data-testid="dbc-palette-result"
+                                 data-kind="message"
+                                 data-result-key="@result.Key"
+                                 @onclick="() => SelectAsync(result)"
+                                 @onmouseenter="() => SetActive(optionIndex)">
+                                <span class="dbc-palette-option-title">@result.PrimaryText</span>
+                                <span class="dbc-palette-option-meta">@result.SecondaryText</span>
+                                @if (result.Comment is not null)
+                                {
+                                    <span class="dbc-palette-option-comment">
+                                        “@FormatComment(result.Comment.Text)”
+                                    </span>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+                @if (Model.SignalResults.Count > 0)
+                {
+                    <div role="group" aria-labelledby="dbc-palette-signals">
+                        <div id="dbc-palette-signals" class="dbc-palette-group" role="presentation">
+                            Signals
+                        </div>
+                        @for (var index = 0; index < Model.SignalResults.Count; index++)
+                        {
+                            var optionIndex = Model.MessageResults.Count + index;
+                            var result = Model.SignalResults[index];
+                            var active = optionIndex == _activeIndex;
+                            <div id="@OptionId(optionIndex)"
+                                 role="option"
+                                 aria-selected="@(active ? "true" : "false")"
+                                 class="@(active ? "dbc-palette-option is-active" : "dbc-palette-option")"
+                                 data-testid="dbc-palette-result"
+                                 data-kind="signal"
+                                 data-result-key="@result.Key"
+                                 @onclick="() => SelectAsync(result)"
+                                 @onmouseenter="() => SetActive(optionIndex)">
+                                <span class="dbc-palette-option-title">@result.PrimaryText</span>
+                                <span class="dbc-palette-option-meta">@result.SecondaryText</span>
+                                @if (result.Comment is not null)
+                                {
+                                    <span class="dbc-palette-option-comment">
+                                        “@FormatComment(result.Comment.Text)”
+                                    </span>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="dbc-palette-footer" aria-hidden="true">
+            ↑↓ navigate · Enter jump · Esc close
+        </div>
+        <div class="dbc-sr-only" role="status" aria-live="polite">@Announcement</div>
+    </div>
+</dialog>
+
+@code {
+    private ElementReference _dialog;
+    private ElementReference _input;
+    private IJSObjectReference? _module;
+    private bool _jsAttempted;
+    private bool _closing;
+    private bool _closedNotified;
+    private bool _scrollActive;
+    private int _activeIndex = -1;
+
+    [Parameter, EditorRequired]
+    public DbcCommandPaletteModel Model { get; set; } = null!;
+
+    [Parameter]
+    public EventCallback<DbcPaletteResult> OnSelected { get; set; }
+
+    [Parameter]
+    public EventCallback OnClosed { get; set; }
+
+    private DbcPaletteResult? ActiveResult
+    {
+        get
+        {
+            if (_activeIndex < 0)
+            {
+                return null;
+            }
+
+            if (_activeIndex < Model.MessageResults.Count)
+            {
+                return Model.MessageResults[_activeIndex];
+            }
+
+            var signalIndex = _activeIndex - Model.MessageResults.Count;
+            return signalIndex < Model.SignalResults.Count
+                ? Model.SignalResults[signalIndex]
+                : null;
+        }
+    }
+
+    private string? ActiveDescendant => ActiveResult is null ? null : OptionId(_activeIndex);
+
+    private string Announcement
+    {
+        get
+        {
+            if (!Model.HasQuery)
+            {
+                return string.Empty;
+            }
+
+            if (Model.ResultCount == 0)
+            {
+                return "No matches.";
+            }
+
+            return Model.TotalMatchCount > Model.ResultCount
+                ? $"{Model.ResultCount} results shown of {Model.TotalMatchCount} matches."
+                : $"{Model.ResultCount} results.";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!OperatingSystem.IsBrowser())
+        {
+            _scrollActive = false;
+            return;
+        }
+
+        if (!_jsAttempted)
+        {
+            _jsAttempted = true;
+            try
+            {
+                _module = await JS.InvokeAsync<IJSObjectReference>(
+                    "import",
+                    "./js/dbc-palette.js");
+                await _module.InvokeVoidAsync("showModal", _dialog, _input);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+            catch (JSException)
+            {
+            }
+        }
+
+        if (_scrollActive && _module is not null && ActiveResult is not null)
+        {
+            _scrollActive = false;
+            try
+            {
+                await _module.InvokeVoidAsync(
+                    "scrollOptionIntoView",
+                    _dialog,
+                    OptionId(_activeIndex));
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+            catch (JSException)
+            {
+            }
+        }
+    }
+
+    private void OnInput(ChangeEventArgs args)
+    {
+        Model.SetQuery(args.Value?.ToString());
+        _activeIndex = Model.ResultCount > 0 ? 0 : -1;
+        _scrollActive = Model.ResultCount > 0;
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs args)
+    {
+        var count = Model.ResultCount;
+        switch (args.Key)
+        {
+            case "ArrowDown":
+                if (count > 0)
+                {
+                    SetActive(_activeIndex < 0 ? 0 : Math.Min(_activeIndex + 1, count - 1));
+                }
+
+                break;
+            case "ArrowUp":
+                if (count > 0)
+                {
+                    SetActive(_activeIndex < 0 ? 0 : Math.Max(_activeIndex - 1, 0));
+                }
+
+                break;
+            case "Home":
+                if (count > 0)
+                {
+                    SetActive(0);
+                }
+
+                break;
+            case "End":
+                if (count > 0)
+                {
+                    SetActive(count - 1);
+                }
+
+                break;
+            case "Enter":
+                if (ActiveResult is { } result)
+                {
+                    await SelectAsync(result);
+                }
+
+                break;
+            case "Escape":
+                await CloseAsync();
+                break;
+        }
+    }
+
+    private void SetActive(int index)
+    {
+        if (_activeIndex == index)
+        {
+            return;
+        }
+
+        _activeIndex = index;
+        _scrollActive = true;
+    }
+
+    private async Task SelectAsync(DbcPaletteResult result)
+    {
+        if (_closing)
+        {
+            return;
+        }
+
+        _closing = true;
+        await CloseDialogAsync();
+        await OnSelected.InvokeAsync(result);
+    }
+
+    private async Task CloseAsync()
+    {
+        if (_closing)
+        {
+            return;
+        }
+
+        _closing = true;
+        await CloseDialogAsync();
+        await NotifyClosedAsync();
+    }
+
+    private async Task CloseDialogAsync()
+    {
+        if (!OperatingSystem.IsBrowser() || _module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _module.InvokeVoidAsync("closeModal", _dialog);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (JSException)
+        {
+        }
+    }
+
+    private async Task OnDialogClosed()
+    {
+        await NotifyClosedAsync();
+    }
+
+    private async Task NotifyClosedAsync()
+    {
+        if (_closedNotified)
+        {
+            return;
+        }
+
+        _closedNotified = true;
+        await OnClosed.InvokeAsync();
+    }
+
+    private static string OptionId(int index)
+    {
+        return string.Create(CultureInfo.InvariantCulture, $"dbc-palette-option-{index}");
+    }
+
+    private static string FormatComment(string text)
+    {
+        var singleLine = text.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        return singleLine.Length <= 90 ? singleLine : singleLine[..90] + "…";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+            catch (JSException)
+            {
+            }
+        }
+    }
+}

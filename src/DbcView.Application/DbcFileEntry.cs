@@ -3,7 +3,11 @@ using DbcView.Domain;
 namespace DbcView.Application;
 
 /// <summary>An in-memory DBC file: document identity, raw text and parse result.</summary>
-public sealed record DbcFileEntry(DbcDocumentId Id, string Content, DbcParseResult ParseResult)
+public sealed record DbcFileEntry(
+    DbcDocumentId Id,
+    string Content,
+    DbcParseResult ParseResult,
+    DbcFileEncoding? Encoding = null)
 {
     public DbcDocument Document => ParseResult.Document;
 

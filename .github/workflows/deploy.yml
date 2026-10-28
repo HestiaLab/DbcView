@@ -48,8 +48,11 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Publish
-        run: dotnet publish src/DbcView.Web -c Release -o publish
+      - name: Install wasm-tools
+        run: dotnet workload install wasm-tools
+
+      - name: Publish AOT
+        run: dotnet publish src/DbcView.Web -c Release -p:RunAOTCompilation=true -o publish
 
       # Project site (https://HestiaLab.github.io/DbcView/) needs the base
       # href rewritten.
@@ -71,6 +74,20 @@ jobs:
           fi
           if [ ! -f "publish/wwwroot/_content/Atlas.Blazor/atlas-v2/atlas.css" ]; then
             echo "::error::Atlas static asset is missing from the published output"
+            exit 1
+          fi
+          if [ ! -f "publish/wwwroot/_content/Astrea.Components/astrea-tree.css" ]; then
+            echo "::error::Astrea tree asset is missing from the published output"
+            exit 1
+          fi
+          native=$(find publish/wwwroot/_framework -maxdepth 1 -name 'dotnet.native.*.wasm' -print -quit)
+          if [ -z "$native" ]; then
+            echo "::error::AOT native runtime is missing from the published output"
+            exit 1
+          fi
+          size=$(stat -c%s "$native")
+          if [ "$size" -lt 10000000 ]; then
+            echo "::error::AOT publish not detected (native runtime is only $size bytes)"
             exit 1
           fi
 

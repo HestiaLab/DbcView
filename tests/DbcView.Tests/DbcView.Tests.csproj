@@ -23,5 +23,11 @@
     <None Include="..\..\samples\bmw_e9x_e8x.dbc"
           Link="Samples\bmw_e9x_e8x.dbc"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\samples\semantics-full.dbc"
+          Link="Samples\semantics-full.dbc"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\samples\legacy-windows1252.dbc"
+          Link="Samples\legacy-windows1252.dbc"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

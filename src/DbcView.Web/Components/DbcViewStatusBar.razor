@@ -26,6 +26,24 @@
                 <span class="dbc-statusbar-text">@Document</span>
             </span>
         }
+        @if (!string.IsNullOrEmpty(Encoding))
+        {
+            <span class="dbc-statusbar-item" data-testid="dbc-status-encoding" title="Detected file encoding">
+                <span>@Encoding</span>
+                @if (UndefinedByteCount > 0)
+                {
+                    <span>· @UndefinedByteCount undefined</span>
+                }
+            </span>
+        }
+        @if (!string.IsNullOrEmpty(Persistence))
+        {
+            <span class="dbc-statusbar-item"
+                  data-testid="dbc-persistence-status"
+                  title="Local session persistence">
+                <span>@Persistence</span>
+            </span>
+        }
         @if (Revision > 0)
         {
             <span class="dbc-statusbar-item" data-testid="dbc-status-revision">
@@ -52,4 +70,13 @@
 
     [Parameter]
     public int WarningCount { get; set; }
+
+    [Parameter]
+    public string? Encoding { get; set; }
+
+    [Parameter]
+    public int UndefinedByteCount { get; set; }
+
+    [Parameter]
+    public string? Persistence { get; set; }
 }

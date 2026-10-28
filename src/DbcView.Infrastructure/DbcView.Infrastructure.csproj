@@ -7,4 +7,8 @@
     <ProjectReference Include="..\DbcView.Domain\DbcView.Domain.csproj" />
     <ProjectReference Include="..\DbcView.Application\DbcView.Application.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="DbcView.Tests" />
+    <InternalsVisibleTo Include="DbcView.Web" />
+  </ItemGroup>
 </Project>

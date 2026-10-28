@@ -46,15 +46,32 @@ public static class DbcDiagnosticCodes
 /// </summary>
 public sealed class DbcParseResult
 {
-    public DbcParseResult(DbcDocument document, IReadOnlyList<DbcDiagnostic> diagnostics)
+    private readonly Lazy<DbcSemanticIndex>? _semantics;
+
+    public DbcParseResult(
+        DbcDocument document,
+        IReadOnlyList<DbcDiagnostic> diagnostics,
+        Func<DbcSemanticIndex>? semanticsFactory = null,
+        IReadOnlyList<DbcStatementSpan>? statementSpans = null)
     {
         Document = document;
         Diagnostics = diagnostics;
+        StatementSpans = statementSpans ?? Array.Empty<DbcStatementSpan>();
+        _semantics = semanticsFactory is null
+            ? null
+            : new Lazy<DbcSemanticIndex>(
+                semanticsFactory,
+                LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
     public DbcDocument Document { get; }
 
     public IReadOnlyList<DbcDiagnostic> Diagnostics { get; }
+
+    public IReadOnlyList<DbcStatementSpan> StatementSpans { get; }
+
+    /// <summary>Lazily built read-only semantics; null when the parser cannot provide them.</summary>
+    public DbcSemanticIndex? Semantics => _semantics?.Value;
 
     public bool HasErrors => Diagnostics.Any(d => d.Severity == DbcDiagnosticSeverity.Error);
 

@@ -1,6 +1,8 @@
 using Atlas.Blazor.DependencyInjection;
 using DbcView.Application;
 using DbcView.Infrastructure;
+using DbcView.Web.Services;
+using DbcView.Web.ViewModels;
 
 namespace DbcView.Web;
 
@@ -34,6 +36,9 @@ public static class DemoServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         services.AddAtlasWorkspace();
         services.AddSingleton<IDbcWorkspaceComposition, DbcWorkspaceComposition>();
+        services.AddScoped<DbcEditorNavigation>();
+        services.AddScoped<DbcEditorSessionRegistry>();
+        services.AddScoped<IWorkspacePersistence, IndexedDbWorkspacePersistence>();
         return services;
     }
 }

@@ -56,9 +56,12 @@ public sealed class DbcTreeModel : IDisposable
         SelectedFolder = name;
     }
 
-    public DbcFileEntry Upload(DbcDocumentId id, string content)
+    public DbcFileEntry Upload(
+        DbcDocumentId id,
+        string content,
+        DbcFileEncoding? encoding = null)
     {
-        return _workspace.Upload(id, content);
+        return _workspace.Upload(id, content, encoding);
     }
 
     public IReadOnlyList<DbcFileEntry> FilesFor(string folder)

@@ -1,4 +1,5 @@
 #nullable enable
+using System.Text;
 using DbcView.Web.Services;
 using Microsoft.AspNetCore.Components.Forms;
 using Xunit;
@@ -19,6 +20,95 @@ public sealed class DbcUploadReaderTests
         Assert.True(result.Success);
         Assert.Equal("VERSION \"\"\nBU_: XXX\n", result.Content);
         Assert.Null(result.Error);
+        Assert.Equal("UTF-8", result.Encoding?.Name);
+        Assert.False(result.Encoding?.IsFallback);
+    }
+
+    [Fact]
+    public async Task ReadAsync_detects_utf8_and_utf16_boms()
+    {
+        var utf8Body = Encoding.UTF8.GetBytes("VERSION \"\"\nBU_: XXX\n");
+        var utf8Bom = new FakeBrowserFile(
+            "bom.dbc",
+            string.Empty,
+            bytes: Encoding.UTF8.GetPreamble().Concat(utf8Body).ToArray());
+        var utf8Result = await DbcUploadReader.ReadAsync(utf8Bom, Limit);
+        Assert.True(utf8Result.Success);
+        Assert.Equal("UTF-8 (BOM)", utf8Result.Encoding?.Name);
+        Assert.StartsWith("VERSION", utf8Result.Content, StringComparison.Ordinal);
+
+        var utf16 = Encoding.Unicode.GetBytes("VERSION \"\"\nBU_: XXX\n");
+        var utf16File = new FakeBrowserFile(
+            "utf16.dbc",
+            string.Empty,
+            bytes: Encoding.Unicode.GetPreamble().Concat(utf16).ToArray());
+        var utf16Result = await DbcUploadReader.ReadAsync(utf16File, Limit);
+        Assert.True(utf16Result.Success);
+        Assert.Equal("UTF-16 LE (BOM)", utf16Result.Encoding?.Name);
+        Assert.Contains("BU_: XXX", utf16Result.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ReadAsync_falls_back_to_windows_1252_and_counts_undefined_bytes()
+    {
+        var bytes = new List<byte>(Encoding.ASCII.GetBytes("VERSION \"\"\nBU_: XXX\nCM_ \"caf"));
+        bytes.Add(0xE9);
+        bytes.AddRange(Encoding.ASCII.GetBytes(" "));
+        bytes.Add(0x93);
+        bytes.AddRange(Encoding.ASCII.GetBytes("quoted"));
+        bytes.Add(0x94);
+        bytes.AddRange(Encoding.ASCII.GetBytes(" "));
+        bytes.Add(0x81);
+        bytes.AddRange(Encoding.ASCII.GetBytes("\";\n"));
+        var file = new FakeBrowserFile("legacy.dbc", string.Empty, bytes: bytes.ToArray());
+
+        var result = await DbcUploadReader.ReadAsync(file, Limit);
+
+        Assert.True(result.Success);
+        Assert.Equal("Windows-1252", result.Encoding?.Name);
+        Assert.True(result.Encoding?.IsFallback);
+        Assert.Equal(1, result.Encoding?.UndefinedByteCount);
+        Assert.Contains("café", result.Content, StringComparison.Ordinal);
+        Assert.Contains("\u201Cquoted\u201D", result.Content, StringComparison.Ordinal);
+        Assert.Contains("\uFFFD", result.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ReadAsync_keeps_valid_utf8_non_ascii_text()
+    {
+        var file = new FakeBrowserFile(
+            "utf8.dbc",
+            "VERSION \"\"\nBU_: XXX\nCM_ \"café\";\n");
+
+        var result = await DbcUploadReader.ReadAsync(file, Limit);
+
+        Assert.True(result.Success);
+        Assert.Equal("UTF-8", result.Encoding?.Name);
+        Assert.Contains("café", result.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ReadAsync_decodes_the_legacy_windows_1252_sample()
+    {
+        var path = Path.Combine(
+            AppContext.BaseDirectory,
+            "Samples",
+            "legacy-windows1252.dbc");
+        var file = new FakeBrowserFile(
+            "legacy-windows1252.dbc",
+            string.Empty,
+            bytes: File.ReadAllBytes(path));
+
+        var result = await DbcUploadReader.ReadAsync(file, Limit);
+
+        Assert.True(result.Success);
+        Assert.Equal("Windows-1252", result.Encoding?.Name);
+        Assert.True(result.Encoding?.IsFallback);
+        Assert.Equal(1, result.Encoding?.UndefinedByteCount);
+        Assert.Contains("café", result.Content, StringComparison.Ordinal);
+        Assert.Contains("\u20AC", result.Content, StringComparison.Ordinal);
+        Assert.Contains("\u201Cquoted\u201D", result.Content, StringComparison.Ordinal);
+        Assert.Contains("\uFFFD", result.Content, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -63,6 +153,7 @@ public sealed class DbcUploadReaderTests
     private sealed class FakeBrowserFile : IBrowserFile
     {
         private readonly string _content;
+        private readonly byte[]? _bytes;
         private readonly long _reportedSize;
         private readonly Exception? _openError;
         private readonly Stream? _readStream;
@@ -72,11 +163,15 @@ public sealed class DbcUploadReaderTests
             string content,
             long? reportedSize = null,
             Exception? openError = null,
-            Stream? readStream = null)
+            Stream? readStream = null,
+            byte[]? bytes = null)
         {
             Name = name;
             _content = content;
-            _reportedSize = reportedSize ?? System.Text.Encoding.UTF8.GetByteCount(content);
+            _bytes = bytes;
+            _reportedSize = reportedSize
+                ?? bytes?.Length
+                ?? System.Text.Encoding.UTF8.GetByteCount(content);
             _openError = openError;
             _readStream = readStream;
         }
@@ -99,7 +194,8 @@ public sealed class DbcUploadReaderTests
                 throw _openError;
             }
 
-            return _readStream ?? new MemoryStream(System.Text.Encoding.UTF8.GetBytes(_content));
+            return _readStream ?? new MemoryStream(
+                _bytes ?? System.Text.Encoding.UTF8.GetBytes(_content));
         }
     }
 

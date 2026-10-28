@@ -542,6 +542,76 @@ textarea {
   background: var(--dv-bg);
 }
 
+.dbc-view-verification-link {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 2;
+  margin: 0;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--dv-border);
+  border-radius: 4px;
+  background: var(--dv-surface);
+  font-size: 0.75rem;
+}
+
+.dbc-view-verification-link a {
+  color: var(--dv-accent);
+}
+
+.dbc-perf {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 0;
+  box-sizing: border-box;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--dv-bg);
+  color: var(--dv-text);
+}
+
+.dbc-perf-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dbc-perf-header h1 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.dbc-perf-header p {
+  flex: 1 1 20rem;
+  margin: 0;
+  color: var(--dv-text-secondary);
+  font-size: 0.75rem;
+}
+
+.dbc-perf-report {
+  max-height: 10rem;
+  margin: 0;
+  overflow: auto;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--dv-border);
+  border-radius: 4px;
+  background: var(--dv-surface);
+  font-family: var(--dv-font-mono);
+  font-size: 0.71875rem;
+  white-space: pre-wrap;
+}
+
+.dbc-perf-table {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--dv-border);
+  border-radius: 4px;
+  background: var(--dv-surface);
+}
+
 /* ============================================================
    Shared panel primitives.
    ============================================================ */
@@ -641,7 +711,7 @@ textarea {
   min-width: 0;
   min-height: 0;
   box-sizing: border-box;
-  overflow: auto;
+  overflow: hidden;
   padding: 0.5rem 0 0.75rem;
   background: var(--dv-surface);
   color: var(--dv-text);
@@ -697,67 +767,6 @@ textarea {
   font-weight: 600;
 }
 
-.dbc-folder {
-  margin-top: 0.125rem;
-}
-
-.dbc-folder-name,
-.dbc-file {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  width: calc(100% - 0.5rem);
-  min-height: 1.625rem;
-  box-sizing: border-box;
-  margin: 0 0.25rem;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  padding: 0.1875rem 0.5rem;
-  background: transparent;
-  color: var(--dv-text);
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
-}
-
-.dbc-folder-name {
-  color: var(--dv-text-secondary);
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.dbc-folder-name:hover,
-.dbc-file:hover {
-  background: var(--dv-hover);
-  color: var(--dv-text);
-}
-
-.dbc-folder-name.selected {
-  background: var(--dv-selection);
-  color: var(--dv-text);
-}
-
-.dbc-folder-name.selected .dbc-tree-icon,
-.dbc-file.selected .dbc-tree-icon {
-  color: var(--dv-accent);
-}
-
-.dbc-file {
-  padding-inline-start: 1.5rem;
-  font-size: 0.75rem;
-  font-weight: 400;
-}
-
-.dbc-file.selected {
-  background: var(--dv-selection);
-  box-shadow: inset 2px 0 0 var(--dv-accent);
-  color: var(--dv-text);
-}
-
-.dbc-file.selected:hover {
-  background: var(--dv-selection);
-}
-
 .dbc-tree-icon {
   color: var(--dv-text-muted);
 }
@@ -767,10 +776,6 @@ textarea {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.dbc-tree button:focus-visible {
-  outline-offset: -2px;
 }
 
 .dbc-tree-message,
@@ -980,61 +985,189 @@ textarea {
 }
 
 .dbc-editor-table {
+  display: flex;
   flex: 1 1 auto;
+  flex-direction: column;
   min-height: 0;
-  overflow: auto;
   background: var(--dv-surface);
 }
 
-.dbc-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.75rem;
+.dbc-table-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2rem;
+  box-sizing: border-box;
+  padding: 0 0.625rem;
+  border-bottom: 1px solid var(--dv-divider);
+  background: var(--dv-surface);
 }
 
-.dbc-table th,
-.dbc-table td {
-  padding: 0.25rem 0.625rem;
-  border-bottom: 1px solid var(--dv-divider);
-  text-align: start;
+.dbc-table-summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dv-text-secondary);
+  font-size: 0.6875rem;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.dbc-table th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
+.dbc-table-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 0.25rem;
+}
+
+.dbc-table-actions .dbc-action {
+  padding-inline: 0.5rem;
+  font-size: 0.6875rem;
+}
+
+.dbc-table {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  font-size: 0.75rem;
+  --dbc-row-columns: 6rem minmax(0, 1fr) 4rem 5rem 9rem;
+}
+
+.dbc-table-head {
+  flex: 0 0 auto;
+  padding-right: var(--dbc-scrollbar-gutter, 0px);
   border-bottom: 1px solid var(--dv-border);
   background: var(--dv-sunken);
+}
+
+.dbc-table-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  background: var(--dv-surface);
+}
+
+.dbc-table-row {
+  display: grid;
+  grid-template-columns: var(--dbc-row-columns);
+  align-items: center;
+  height: 32px;
+  box-sizing: border-box;
+}
+
+.dbc-table-header {
+  height: 2rem;
   color: var(--dv-text-secondary);
   font-size: 0.65625rem;
   font-weight: 600;
   letter-spacing: 0.04em;
+  line-height: 2rem;
   text-transform: uppercase;
 }
 
-.dbc-table tbody tr:hover {
+.dbc-cell {
+  min-width: 0;
+  padding: 0 0.625rem;
+  overflow: hidden;
+  line-height: 31px;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: inset 0 -1px 0 var(--dv-divider);
+}
+
+.dbc-table-header .dbc-cell {
+  box-shadow: none;
+  line-height: 2rem;
+}
+
+.dbc-table-body .dbc-table-row:hover {
   background: var(--dv-hover);
 }
 
-.dbc-message-row td {
-  min-height: 1.75rem;
+.dbc-message-row.is-selected,
+.dbc-signal-row.is-selected {
+  background: var(--dv-selection);
+  box-shadow: inset 2px 0 0 var(--dv-accent);
 }
 
-.dbc-message-row td:first-child,
-.dbc-message-row td:nth-child(3) {
+.dbc-table-body .dbc-table-row.is-selected:hover {
+  background: var(--dv-selection);
+}
+
+.dbc-message-row .dbc-cell-id,
+.dbc-message-row .dbc-cell-length {
   color: var(--dv-text-secondary);
   font-family: var(--dv-font-mono);
   font-size: 0.71875rem;
 }
 
-.dbc-signal-row td {
+.dbc-signal-row .dbc-cell {
   color: var(--dv-text-secondary);
   font-size: 0.71875rem;
 }
 
-.dbc-signal-row td:nth-child(2) {
-  padding-inline-start: 1.75rem;
+.dbc-row-name {
+  padding-inline: 0.625rem;
+}
+
+.dbc-row-name-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.dbc-row-toggle,
+.dbc-row-toggle-spacer {
+  display: inline-flex;
+  flex: 0 0 1.125rem;
+  align-items: center;
+  justify-content: center;
+  width: 1.125rem;
+  height: 1.25rem;
+}
+
+.dbc-row-toggle {
+  border: 0;
+  border-radius: 3px;
+  padding: 0;
+  background: none;
+  color: var(--dv-text-secondary);
+  cursor: pointer;
+}
+
+.dbc-row-toggle:hover {
+  background: var(--dv-hover);
+  color: var(--dv-text);
+}
+
+.dbc-row-toggle:focus-visible {
+  outline: 2px solid var(--dv-focus);
+  outline-offset: 1px;
+}
+
+.dbc-row-focus {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dbc-row-focus:focus-visible {
+  outline: 2px solid var(--dv-focus);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+.dbc-row-label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dbc-signal-link {
@@ -1044,12 +1177,6 @@ textarea {
 
 .dbc-signal-link:hover {
   color: var(--dv-text);
-}
-
-.dbc-message-row .dbc-link {
-  max-width: 24rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* ============================================================
@@ -1126,6 +1253,10 @@ textarea {
 }
 
 @media (max-width: 700px) {
+  .dbc-table {
+    --dbc-row-columns: 5rem minmax(0, 1fr) 3.5rem 4.5rem 6rem;
+  }
+
   .dbc-compact-nav {
     display: flex;
     gap: 0.125rem;
@@ -1278,4 +1409,699 @@ textarea {
     transition-duration: 0s !important;
     animation-duration: 0s !important;
   }
+}
+
+/* ============================================================
+   Command palette (workspace-level native dialog).
+   ============================================================ */
+.dbc-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.dbc-palette {
+  display: flex;
+  flex-direction: column;
+  width: min(42rem, calc(100vw - 2rem));
+  max-height: min(34rem, calc(100vh - 4rem));
+  box-sizing: border-box;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--dv-border);
+  border-radius: 8px;
+  background: var(--dv-surface);
+  color: var(--dv-text);
+  box-shadow: 0 18px 48px rgba(13, 17, 23, 0.32);
+}
+
+.dbc-palette::backdrop {
+  background: rgba(13, 17, 23, 0.45);
+}
+
+.dbc-palette-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.dbc-palette-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  border-bottom: 1px solid var(--dv-divider);
+  color: var(--dv-text-secondary);
+}
+
+.dbc-palette-search:focus-within {
+  box-shadow: inset 0 -2px 0 var(--dv-focus);
+}
+
+.dbc-palette-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  padding: 0.25rem 0;
+  background: transparent;
+  color: var(--dv-text);
+  font: inherit;
+  font-size: 0.9375rem;
+  outline: none;
+}
+
+.dbc-palette-hint {
+  margin: 0;
+  padding: 1rem 0.875rem;
+  color: var(--dv-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.dbc-palette-results {
+  min-height: 0;
+  padding: 0.25rem;
+  overflow-y: auto;
+}
+
+.dbc-palette-group {
+  padding: 0.5rem 0.75rem 0.25rem;
+  color: var(--dv-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dbc-palette-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.dbc-palette-option:hover,
+.dbc-palette-option.is-active {
+  background: var(--dv-selection);
+}
+
+.dbc-palette-option-title {
+  color: var(--dv-text);
+  font-family: var(--dv-font-mono);
+  font-size: 0.8125rem;
+}
+
+.dbc-palette-option-meta {
+  overflow: hidden;
+  color: var(--dv-text-secondary);
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dbc-palette-footer {
+  border-top: 1px solid var(--dv-divider);
+  padding: 0.375rem 0.75rem;
+  color: var(--dv-text-muted);
+  font-size: 0.6875rem;
+}
+
+@media (max-width: 700px) {
+  .dbc-palette {
+    width: calc(100vw - 1rem);
+    max-height: calc(100vh - 3rem);
+  }
+}
+
+/* ============================================================
+   Semantic Properties sections and value-table viewer.
+   ============================================================ */
+.dbc-property-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding-top: 0.625rem;
+  border-top: 1px solid var(--dv-divider);
+}
+
+.dbc-property-section-title {
+  margin: 0;
+  color: var(--dv-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.dbc-property-muted {
+  color: var(--dv-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 400;
+}
+
+.dbc-semantic-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dbc-comment {
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--dv-divider);
+  border-radius: 5px;
+  background: var(--dv-sunken);
+}
+
+.dbc-comment.is-highlighted {
+  border-color: var(--dv-accent);
+  background: var(--dv-selection);
+}
+
+.dbc-comment-text {
+  margin: 0 0 0.25rem;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.dbc-source-line {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--dv-accent);
+  font: inherit;
+  font-size: 0.6875rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.dbc-source-line:hover {
+  color: var(--dv-accent-strong);
+}
+
+.dbc-attributes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.dbc-attribute {
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--dv-divider);
+  border-radius: 5px;
+}
+
+.dbc-attribute-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.dbc-attribute-name {
+  overflow-wrap: anywhere;
+  font-family: var(--dv-font-mono);
+  font-weight: 600;
+}
+
+.dbc-attribute-value {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+}
+
+.dbc-attribute-value code {
+  overflow-wrap: anywhere;
+  font-family: var(--dv-font-mono);
+}
+
+.dbc-attribute-meta {
+  margin-top: 0.15rem;
+  overflow-wrap: anywhere;
+  color: var(--dv-text-secondary);
+  font-size: 0.6875rem;
+}
+
+.dbc-source-badge,
+.dbc-badge {
+  border: 1px solid var(--dv-border);
+  border-radius: 999px;
+  padding: 0 0.35rem;
+  color: var(--dv-text-secondary);
+  font-size: 0.625rem;
+  line-height: 1.4;
+}
+
+.dbc-source-badge.is-explicit {
+  border-color: var(--dv-success);
+  color: var(--dv-success-text);
+}
+
+.dbc-source-badge.is-undefined {
+  border-color: var(--dv-warning);
+  color: var(--dv-warning-text);
+}
+
+.dbc-source-badge.is-default {
+  color: var(--dv-text-secondary);
+}
+
+.dbc-source-badge.is-definition {
+  color: var(--dv-text-muted);
+}
+
+.dbc-value-table-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dbc-value-preview {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+}
+
+.dbc-value-preview dt {
+  color: var(--dv-text);
+  font-family: var(--dv-font-mono);
+}
+
+.dbc-value-preview dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--dv-text-secondary);
+}
+
+.dbc-statement-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.dbc-statement-group-title {
+  margin: 0.25rem 0 0;
+  font-family: var(--dv-font-mono);
+  font-size: 0.71875rem;
+}
+
+.dbc-statement {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.dbc-statement-preview {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--dv-text-secondary);
+  font-family: var(--dv-font-mono);
+  font-size: 0.6875rem;
+}
+
+.dbc-value-dialog {
+  width: min(36rem, calc(100vw - 2rem));
+  max-height: min(30rem, calc(100vh - 4rem));
+  box-sizing: border-box;
+  padding: 0;
+  border: 1px solid var(--dv-border);
+  border-radius: 8px;
+  background: var(--dv-surface);
+  color: var(--dv-text);
+}
+
+.dbc-value-dialog::backdrop {
+  background: rgba(13, 17, 23, 0.45);
+}
+
+.dbc-value-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--dv-divider);
+}
+
+.dbc-value-dialog-header h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--dv-font-mono);
+  font-size: 0.8125rem;
+}
+
+.dbc-value-dialog-body {
+  max-height: calc(100vh - 10rem);
+  padding: 0.375rem 0.75rem;
+  overflow: auto;
+}
+
+.dbc-value-row {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.2rem 0;
+  font-size: 0.75rem;
+}
+
+.dbc-value-row code {
+  font-family: var(--dv-font-mono);
+}
+
+.dbc-value-row span {
+  overflow-wrap: anywhere;
+  color: var(--dv-text-secondary);
+}
+
+@media (max-width: 700px) {
+  .dbc-value-dialog {
+    width: calc(100vw - 1rem);
+    max-height: calc(100vh - 3rem);
+  }
+}
+
+.dbc-palette-option-comment {
+  overflow: hidden;
+  color: var(--dv-accent);
+  font-size: 0.6875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   Structured statement edit dialog.
+   ============================================================ */
+.dbc-edit-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(40rem, calc(100vw - 2rem));
+  max-height: min(36rem, calc(100vh - 4rem));
+  box-sizing: border-box;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--dv-border);
+  border-radius: 8px;
+  background: var(--dv-surface);
+  color: var(--dv-text);
+  box-shadow: 0 18px 48px rgba(13, 17, 23, 0.32);
+}
+
+.dbc-edit-dialog::backdrop {
+  background: rgba(13, 17, 23, 0.45);
+}
+
+.dbc-edit-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.dbc-edit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--dv-divider);
+}
+
+.dbc-edit-header h3 {
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.dbc-edit-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  min-height: 0;
+  padding: 0.75rem;
+  overflow: auto;
+}
+
+.dbc-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: var(--dv-text-secondary);
+  font-size: 0.71875rem;
+}
+
+.dbc-edit-field input,
+.dbc-edit-field textarea,
+.dbc-edit-entry input {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid var(--dv-border);
+  border-radius: 4px;
+  padding: 0.35rem 0.45rem;
+  background: var(--dv-sunken);
+  color: var(--dv-text);
+  font-family: var(--dv-font-mono);
+  font-size: 0.75rem;
+}
+
+.dbc-edit-field textarea {
+  resize: vertical;
+}
+
+.dbc-edit-meta {
+  grid-template-columns: minmax(4.5rem, max-content) minmax(0, 1fr);
+}
+
+.dbc-edit-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.dbc-edit-entry {
+  display: grid;
+  grid-template-columns: minmax(4rem, 1fr) minmax(0, 2fr) auto;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.dbc-edit-preview-block h4 {
+  margin: 0 0 0.25rem;
+  color: var(--dv-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dbc-edit-preview-block pre {
+  margin: 0;
+  padding: 0.45rem 0.55rem;
+  overflow: auto;
+  border: 1px solid var(--dv-divider);
+  border-radius: 4px;
+  background: var(--dv-sunken);
+  color: var(--dv-text);
+  font-family: var(--dv-font-mono);
+  font-size: 0.71875rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.dbc-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--dv-divider);
+}
+
+.dbc-edit-spacer {
+  flex: 1 1 auto;
+}
+
+.dbc-action.danger {
+  border-color: var(--dv-danger);
+  color: var(--dv-danger-text);
+}
+
+.dbc-action.danger:hover {
+  background: var(--dv-danger-bg);
+}
+
+@media (max-width: 700px) {
+  .dbc-edit-dialog {
+    width: calc(100vw - 1rem);
+    max-height: calc(100vh - 3rem);
+  }
+}
+
+.dbc-property-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.dbc-comment-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dbc-editor-document-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+@media (max-width: 700px) {
+  .dbc-editor-toolbar {
+    flex-wrap: wrap;
+    height: auto;
+    padding-block: 0.25rem;
+  }
+
+  .dbc-editor-file {
+    flex-basis: 100%;
+  }
+}
+
+/* ============================================================
+   Local session persistence notice and controls.
+   ============================================================ */
+.dbc-persistence-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  border-bottom: 1px solid var(--dv-warning);
+  background: var(--dv-warning-bg);
+  color: var(--dv-warning-text);
+  font-size: 0.75rem;
+}
+
+.dbc-persistence-banner.is-error {
+  border-bottom-color: var(--dv-danger);
+  background: var(--dv-danger-bg);
+  color: var(--dv-danger-text);
+}
+
+.dbc-persistence-banner > span {
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+
+.dbc-persistence-banner .dbc-icon-button {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: 0 0 auto;
+  color: currentColor;
+}
+
+/* ============================================================
+   Astrea Tree adapter for the DBC explorer.
+   ============================================================ */
+.dbc-tree-nodes {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 0.25rem 0.5rem;
+}
+
+.dbc-tree-sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.dbc-tree .tree-node-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dv-text-muted);
+  cursor: pointer;
+}
+
+.dbc-tree .tree-node-control:hover {
+  color: var(--dv-text);
+}
+
+.dbc-tree .tree-container {
+  --ast-tree-font-size: 0.78125rem;
+  --ast-tree-line-height: 1.4;
+  --ast-tree-color-text: var(--dv-text);
+  --ast-tree-node-height: 1.625rem;
+  --ast-tree-color-hover: var(--dv-hover);
+  --ast-tree-color-focus: var(--dv-selection);
+  --ast-tree-color-active: var(--dv-selection);
+  --ast-tree-color-border: var(--dv-border);
+  --ast-tree-icon-size: 14px;
+  --ast-tree-control-indent: 16px;
+
+  min-width: 0;
+}
+
+.dbc-tree .tree-node {
+  border-radius: 4px;
+}
+
+.dbc-tree .tree-node-content__main {
+  gap: 0.375rem;
+  min-height: 1.625rem;
+  border-radius: 4px;
+}
+
+.dbc-tree .tree-node-text {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.dbc-tree .tree-node-text.selected,
+.dbc-tree .tree-node-text.focused {
+  border-radius: 4px;
+}
+
+.dbc-tree .dbc-tree-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dbc-tree .dbc-tree-folder-node .dbc-tree-icon {
+  color: var(--dv-text-muted);
+}
+
+.dbc-tree .tree-node.selected .dbc-tree-icon {
+  color: var(--dv-accent);
+}
+
+.dbc-tree .dbc-tree-folder-node .dbc-tree-label {
+  color: var(--dv-text-secondary);
+  font-weight: 600;
+}
+
+.dbc-tree .dbc-tree-file-node .dbc-tree-label {
+  font-weight: 400;
+}
+
+.dbc-tree .tree-node.selected .tree-node-content__main,
+.dbc-tree .tree-node-content__main.selected {
+  background: var(--dv-selection);
+  box-shadow: inset 2px 0 0 var(--dv-accent);
 }

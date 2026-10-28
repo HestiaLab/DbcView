@@ -10,11 +10,27 @@
 @using DbcView.Application
 @using DbcView.Domain
 @using DbcView.Web.ViewModels
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
 
-<section class="dbc-view-shell" data-testid="dbc-view-shell" data-compact-active="@activePanel" aria-label="DbcView IDE workspace">
+<section class="dbc-view-shell" data-testid="dbc-view-shell" data-compact-active="@activePanel" data-document-open="@(currentDocument is not null ? "true" : "false")" aria-label="DbcView IDE workspace">
+    @if (persistenceNotice is not null)
+    {
+        <div class="dbc-persistence-banner @(persistenceError is null ? "" : "is-error")"
+             data-testid="dbc-persistence-notice"
+             role="status">
+            <span>@persistenceNotice</span>
+            <button type="button"
+                    class="dbc-icon-button"
+                    aria-label="Dismiss session notice"
+                    @onclick="DismissPersistenceNotice">
+                <DbcIcon Name="close" Size="12" />
+            </button>
+        </div>
+    }
     @if (workspace is not null)
     {
-        <nav class="dbc-compact-nav" aria-label="Workspace panels">
+        <nav class="dbc-compact-nav" data-testid="dbc-compact-nav" aria-label="Workspace panels">
             <button type="button"
                     data-testid="dbc-compact-explorer"
                     aria-pressed="@(activePanel == "explorer" ? "true" : "false")"
@@ -41,13 +57,21 @@
             <TopToolbarContent>
                 <DbcViewTopToolbar CanUndo="@(workspace?.CanUndo == true)"
                                      CanRedo="@(workspace?.CanRedo == true)"
+                                     CanSearch="@(currentDocument is not null)"
+                                     ShowPersistence="true"
+                                     PersistenceEnabled="@persistenceEnabled"
                                      OnUndo="UndoAsync"
-                                     OnRedo="RedoAsync" />
+                                     OnRedo="RedoAsync"
+                                     OnSearch="OpenPalette"
+                                     OnPersistence="OpenPersistenceDialog" />
             </TopToolbarContent>
             <StatusBarContent>
                 <DbcViewStatusBar OperationStatus="@operationStatus"
                                   Document="@currentDocument?.Key"
                                   Revision="@revision"
+                                  Encoding="@currentEncoding"
+                                  UndefinedByteCount="@currentUndefinedBytes"
+                                  Persistence="@PersistenceStatus"
                                   ErrorCount="@errorCount"
                                   WarningCount="@warningCount" />
             </StatusBarContent>
@@ -58,12 +82,13 @@
                 <AtlasContentRoute Kind="@DbcContentKinds.DbcEditor" Context="content">
                     <DbcEditorPanel Content="content"
                                     Workspace="dbcWorkspace"
-                                    Tree="dbcTree"
                                     OnMessageSelected="ShowMessageProperties"
                                     OnSignalSelected="ShowSignalProperties" />
                 </AtlasContentRoute>
                 <AtlasContentRoute Kind="@DbcContentKinds.DbcProperty">
-                    <DbcPropertyPanel Model="dbcProperty" />
+                    <DbcPropertyPanel Model="dbcProperty"
+                                      OnLocateSource="LocateSourceAsync"
+                                      ApplyEdit="ApplyStructuredEdit" />
                 </AtlasContentRoute>
             </ContentRoutes>
 
@@ -72,10 +97,26 @@
             </ErrorTemplate>
         </AtlasWorkspaceHost>
     }
+    @if (paletteOpen)
+    {
+        <DbcCommandPalette Model="paletteModel"
+                           OnSelected="OnPaletteSelected"
+                           OnClosed="OnPaletteClosed" />
+    }
+    @if (persistenceDialogOpen)
+    {
+        <DbcPersistenceDialog Enabled="persistenceEnabled"
+                              LastSavedAt="persistenceSavedAt"
+                              Error="persistenceError"
+                              OnEnable="EnablePersistenceAsync"
+                              OnForget="ForgetPersistenceAsync"
+                              OnClosed="ClosePersistenceDialog" />
+    }
 </section>
 
 @code {
     private readonly SemaphoreSlim openGate = new(1, 1);
+    private readonly DbcCommandPaletteModel paletteModel = new();
     private DbcFileWorkspace dbcWorkspace = null!;
     private DbcTreeModel dbcTree = null!;
     private DbcPropertyModel dbcProperty = null!;
@@ -87,14 +128,57 @@
     private long revision;
     private int errorCount;
     private int warningCount;
+    private string? currentEncoding;
+    private int currentUndefinedBytes;
     private bool editorPlaceholderConsumed;
     private int selectionVersion;
+    private IJSObjectReference? paletteModule;
+    private DotNetObjectReference<DbcViewWorkspace>? paletteReference;
+    private bool paletteOpen;
+    private bool paletteShortcutAttempted;
+    private bool persistenceEnabled;
+    private bool persistenceDialogOpen;
+    private bool persistenceRestoreAttempted;
+    private bool persistenceRestoring;
+    private DateTimeOffset? persistenceSavedAt;
+    private string? persistenceError;
+    private string? persistenceNotice;
+    private CancellationTokenSource? persistenceDebounce;
 
     [Inject]
     private IAtlasWorkspaceFactory Factory { get; set; } = null!;
 
     [Inject]
     private IDbcWorkspaceComposition CompositionFactory { get; set; } = null!;
+
+    [Inject]
+    private DbcEditorNavigation Navigation { get; set; } = null!;
+
+    [Inject]
+    private DbcEditorSessionRegistry Sessions { get; set; } = null!;
+
+    [Inject]
+    private IWorkspacePersistence Persistence { get; set; } = null!;
+
+    private string? PersistenceStatus
+    {
+        get
+        {
+            if (!persistenceEnabled)
+            {
+                return null;
+            }
+
+            if (persistenceError is not null)
+            {
+                return "Session storage error";
+            }
+
+            return persistenceSavedAt is { } saved
+                ? $"Session saved {saved.ToLocalTime():HH:mm:ss}"
+                : "Session on";
+        }
+    }
 
     [Parameter]
     public string WorkspaceName { get; set; } = "dbc-view";
@@ -118,6 +202,7 @@
         dbcTree = new DbcTreeModel(dbcWorkspace);
         dbcProperty = new DbcPropertyModel();
         dbcTree.DocumentSelectionChanged += OnDocumentSelectionChanged;
+        Sessions.Changed += OnEditorSessionsChanged;
     }
 
     private void OnDocumentSelectionChanged()
@@ -197,6 +282,8 @@
             dbcProperty.ShowFile(file);
             currentDocument = documentId;
             currentDocumentItemId = FindOpenItemId(documentId) ?? item.Id;
+            currentEncoding = file.Encoding?.DisplayName;
+            currentUndefinedBytes = file.Encoding?.UndefinedByteCount ?? 0;
             UpdateStatusDiagnostics();
             operationStatus = $"Opened {documentId.Key}";
             activePanel = "editor";
@@ -234,6 +321,519 @@
         activePanel = panel;
     }
 
+    private void OpenPalette()
+    {
+        if (paletteOpen || currentDocument is not { } documentId)
+        {
+            return;
+        }
+
+        if (dbcWorkspace.Find(documentId) is not { } file)
+        {
+            return;
+        }
+
+        paletteModel.SetDocument(file.ParseResult.Document, file.ParseResult.Semantics);
+        paletteOpen = true;
+    }
+
+    private void OnPaletteClosed()
+    {
+        paletteOpen = false;
+    }
+
+    private async Task OnPaletteSelected(DbcPaletteResult result)
+    {
+        paletteOpen = false;
+        activePanel = "editor";
+
+        if (result.Signal is not null)
+        {
+            dbcProperty.ShowSignal(result.Signal);
+        }
+        else
+        {
+            dbcProperty.ShowMessage(result.Message);
+        }
+
+        if (result.Comment is not null)
+        {
+            dbcProperty.HighlightComment(result.Comment);
+        }
+
+        if (currentDocument is { } documentId)
+        {
+            Navigation.Request(new DbcEditorNavigationRequest(
+                documentId,
+                result.Message.Id,
+                result.Signal?.Name));
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LocateSourceAsync(int lineNumber)
+    {
+        if (currentDocument is not { } documentId)
+        {
+            return;
+        }
+
+        activePanel = "editor";
+        Navigation.Request(DbcEditorNavigationRequest.ForSource(documentId, lineNumber));
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private DbcStructuredEditOutcome ApplyStructuredEdit(DbcStructuredEdit edit)
+    {
+        if (currentDocument is not { } documentId)
+        {
+            return DbcStructuredEditOutcome.Fail("No document is open.");
+        }
+
+        if (Sessions.Find(documentId) is { IsTextDirty: true })
+        {
+            return DbcStructuredEditOutcome.Fail(
+                "Save the text buffer before editing semantics.");
+        }
+
+        var outcome = dbcWorkspace.ApplyStructuredEdit(documentId, edit);
+        if (!outcome.Success)
+        {
+            return outcome;
+        }
+
+        if (dbcWorkspace.Find(documentId) is { } file)
+        {
+            dbcProperty.Refresh(file);
+        }
+
+        Navigation.Request(DbcEditorNavigationRequest.ForReload(documentId));
+        operationStatus = outcome.Diff is { } diff
+            ? $"Applied {diff.Change} statement at line {diff.LineNumber}"
+            : "Applied semantic edit";
+        _ = RefreshAsync();
+        return outcome;
+    }
+
+    [JSInvokable]
+    public void OpenPaletteFromShortcut()
+    {
+        _ = InvokeAsync(() =>
+        {
+            OpenPalette();
+            StateHasChanged();
+        });
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (OperatingSystem.IsBrowser() && !persistenceRestoreAttempted)
+        {
+            persistenceRestoreAttempted = true;
+            await RestoreSessionAsync();
+        }
+
+        if (!OperatingSystem.IsBrowser() || paletteShortcutAttempted)
+        {
+            return;
+        }
+
+        paletteShortcutAttempted = true;
+        try
+        {
+            paletteModule = await JS.InvokeAsync<IJSObjectReference>(
+                "import",
+                "./js/dbc-palette.js");
+            paletteReference = DotNetObjectReference.Create(this);
+            await paletteModule.InvokeVoidAsync("installShortcut", paletteReference);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (JSException)
+        {
+        }
+    }
+
+    private async Task RestoreSessionAsync()
+    {
+        DbcPersistenceLoadResult load;
+        try
+        {
+            load = await Persistence.LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            SetPersistenceWarning($"Session restore failed: {ex.Message}");
+            await RefreshAsync();
+            return;
+        }
+
+        if (!load.Found)
+        {
+            if (!load.IsCompatible && load.Warning is not null)
+            {
+                SetPersistenceWarning(load.Warning);
+                await RefreshAsync();
+            }
+
+            return;
+        }
+
+        if (!load.IsCompatible || load.Snapshot is null)
+        {
+            var warning = load.Warning ?? "The saved session could not be restored.";
+            persistenceEnabled = false;
+            persistenceError = warning;
+            persistenceNotice = warning;
+            operationStatus = "Saved session discarded";
+            var cleared = await Persistence.ClearAsync();
+            if (!cleared.Success)
+            {
+                persistenceError = $"{warning} {cleared.Error}";
+                persistenceNotice = persistenceError;
+            }
+
+            await RefreshAsync();
+            return;
+        }
+
+        persistenceRestoring = true;
+        try
+        {
+            var snapshot = load.Snapshot;
+            var files = snapshot.Files
+                .Select(file => (Id: new DbcDocumentId(file.Folder, file.FileName), File: file))
+                .ToArray();
+
+            foreach (var folder in snapshot.Folders)
+            {
+                if (!dbcWorkspace.Folders.Contains(folder, StringComparer.Ordinal))
+                {
+                    dbcWorkspace.CreateFolder(folder);
+                }
+            }
+
+            foreach (var (id, file) in files)
+            {
+                if (!dbcWorkspace.Folders.Contains(id.Folder, StringComparer.Ordinal))
+                {
+                    dbcWorkspace.CreateFolder(id.Folder);
+                }
+
+                if (dbcWorkspace.Find(id) is not null)
+                {
+                    continue;
+                }
+
+                var encoding = string.IsNullOrWhiteSpace(file.EncodingName)
+                    ? null
+                    : new DbcFileEncoding(
+                        file.EncodingName,
+                        file.EncodingFallback,
+                        file.UndefinedByteCount);
+                dbcWorkspace.Upload(id, file.Content, encoding);
+            }
+
+            var modes = new Dictionary<DbcDocumentId, DbcEditorModel.ViewMode>();
+            foreach (var (id, file) in files)
+            {
+                if (Enum.TryParse<DbcEditorModel.ViewMode>(
+                        file.ViewMode,
+                        ignoreCase: true,
+                        out var mode))
+                {
+                    modes[id] = mode;
+                }
+            }
+
+            Sessions.SetRestoredModes(modes);
+            DbcDocumentId? lastOpened = null;
+            foreach (var document in snapshot.OpenDocuments)
+            {
+                var id = new DbcDocumentId(document.Folder, document.FileName);
+                if (dbcWorkspace.Find(id) is null)
+                {
+                    continue;
+                }
+
+                await OpenRestoredDocumentAsync(id, updateProperty: false);
+                lastOpened = id;
+            }
+
+            if (snapshot.ActiveDocument is { } active)
+            {
+                var id = new DbcDocumentId(active.Folder, active.FileName);
+                if (dbcWorkspace.Find(id) is not null)
+                {
+                    await OpenRestoredDocumentAsync(id, updateProperty: true);
+                    lastOpened = id;
+                }
+            }
+
+            if (lastOpened is { } last && dbcWorkspace.Find(last) is { } lastFile)
+            {
+                dbcProperty.ShowFile(lastFile);
+            }
+
+            persistenceEnabled = true;
+            persistenceSavedAt = snapshot.SavedAt;
+            persistenceError = null;
+            persistenceNotice =
+                $"Restored local session saved at {snapshot.SavedAt.ToLocalTime():g}.";
+            operationStatus = "Restored local session";
+        }
+        catch (Exception ex)
+        {
+            persistenceEnabled = false;
+            persistenceError = $"Session restore failed: {ex.Message}";
+            persistenceNotice = persistenceError;
+            operationStatus = "Session restore failed";
+        }
+        finally
+        {
+            persistenceRestoring = false;
+            await RefreshAsync();
+        }
+    }
+
+    private async Task OpenRestoredDocumentAsync(
+        DbcDocumentId documentId,
+        bool updateProperty)
+    {
+        if (workspace is null)
+        {
+            return;
+        }
+
+        await openGate.WaitAsync();
+        try
+        {
+            var file = dbcWorkspace.Find(documentId);
+            if (file is null)
+            {
+                return;
+            }
+
+            if (!editorPlaceholderConsumed)
+            {
+                var placeholderId = new DockItemId("dbc-editor");
+                if (workspace.Current.Items.ContainsKey(placeholderId))
+                {
+                    var closeResult = await workspace.ExecuteAsync(
+                        new CloseItemOperation(placeholderId));
+                    if (!closeResult.Succeeded)
+                    {
+                        operationStatus = "Could not prepare the editor for session restore.";
+                        return;
+                    }
+                }
+
+                editorPlaceholderConsumed = true;
+            }
+
+            var item = new DockItem(
+                new DockItemId($"dbc-editor-{Guid.NewGuid():N}"),
+                DockItemKind.Document,
+                new ContentReference(DbcContentKinds.DbcEditor, documentId.Key),
+                DockItemCapabilityPresets.Document,
+                documentId.Key);
+            var openResult = await workspace.ExecuteAsync(new OpenItemOperation(
+                item,
+                new LayoutNodeId("editor"),
+                ContentDeduplicationMode.ActivateExisting));
+            if (!openResult.Succeeded)
+            {
+                operationStatus = $"Could not restore '{documentId.Key}'.";
+                return;
+            }
+
+            currentDocument = documentId;
+            currentDocumentItemId = FindOpenItemId(documentId) ?? item.Id;
+            currentEncoding = file.Encoding?.DisplayName;
+            currentUndefinedBytes = file.Encoding?.UndefinedByteCount ?? 0;
+            if (updateProperty)
+            {
+                dbcProperty.ShowFile(file);
+            }
+
+            UpdateStatusDiagnostics();
+            activePanel = "editor";
+        }
+        catch (Exception ex)
+        {
+            operationStatus = $"Session restore failed: {ex.Message}";
+        }
+        finally
+        {
+            openGate.Release();
+        }
+    }
+
+    private void OpenPersistenceDialog()
+    {
+        persistenceDialogOpen = true;
+    }
+
+    private void ClosePersistenceDialog()
+    {
+        persistenceDialogOpen = false;
+    }
+
+    private void DismissPersistenceNotice()
+    {
+        persistenceNotice = null;
+    }
+
+    private async Task EnablePersistenceAsync()
+    {
+        persistenceEnabled = true;
+        persistenceError = null;
+        persistenceDialogOpen = false;
+        await PersistNowAsync();
+        if (persistenceError is null)
+        {
+            persistenceNotice = "Local session persistence enabled.";
+            operationStatus = "Session persistence enabled";
+        }
+
+        await RefreshAsync();
+    }
+
+    private async Task ForgetPersistenceAsync()
+    {
+        var result = await Persistence.ClearAsync();
+        if (result.Success)
+        {
+            persistenceEnabled = false;
+            persistenceSavedAt = null;
+            persistenceError = null;
+            persistenceNotice = "Saved local session removed.";
+            operationStatus = "Saved session forgotten";
+        }
+        else
+        {
+            persistenceError = result.Error;
+            persistenceNotice = result.Error;
+            operationStatus = "Could not clear the saved session";
+        }
+
+        persistenceDialogOpen = false;
+        await RefreshAsync();
+    }
+
+    private void SchedulePersist()
+    {
+        if (!persistenceEnabled || persistenceRestoring || workspace is null)
+        {
+            return;
+        }
+
+        var cancellation = new CancellationTokenSource();
+        var previous = Interlocked.Exchange(ref persistenceDebounce, cancellation);
+        previous?.Cancel();
+        _ = PersistAfterDelayAsync(cancellation.Token);
+    }
+
+    private async Task PersistAfterDelayAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(500, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        await InvokeAsync(PersistNowAsync);
+    }
+
+    private async Task PersistNowAsync()
+    {
+        if (!persistenceEnabled || persistenceRestoring || workspace is null)
+        {
+            return;
+        }
+
+        var snapshot = BuildSnapshot();
+        var hadError = persistenceError is not null;
+        var result = await Persistence.SaveAsync(snapshot);
+        if (result.Success)
+        {
+            persistenceSavedAt = snapshot.SavedAt;
+            persistenceError = null;
+            if (hadError)
+            {
+                persistenceNotice = null;
+            }
+        }
+        else
+        {
+            persistenceError = result.Error;
+            persistenceNotice = result.Error;
+            operationStatus = "Local session could not be saved";
+        }
+
+        await RefreshAsync();
+    }
+
+    private DbcWorkspaceSnapshot BuildSnapshot()
+    {
+        var files = new List<DbcPersistedFile>();
+        foreach (var folder in dbcWorkspace.Folders)
+        {
+            foreach (var file in dbcWorkspace.FilesIn(folder))
+            {
+                var viewMode = Sessions.Find(file.Id)?.Mode.ToString() ?? "Table";
+                files.Add(new DbcPersistedFile(
+                    folder,
+                    file.Id.FileName,
+                    file.Content,
+                    file.Encoding?.Name,
+                    file.Encoding?.IsFallback ?? false,
+                    file.Encoding?.UndefinedByteCount ?? 0,
+                    viewMode));
+            }
+        }
+
+        var openDocuments = new List<DbcPersistedDocument>();
+        if (workspace is not null)
+        {
+            foreach (var pair in workspace.Current.Items)
+            {
+                if (pair.Value.Kind != DockItemKind.Document
+                    || !DbcDocumentId.TryParseKey(pair.Value.Content.ResourceId, out var id)
+                    || dbcWorkspace.Find(id) is null)
+                {
+                    continue;
+                }
+
+                openDocuments.Add(new DbcPersistedDocument(id.Folder, id.FileName));
+            }
+        }
+
+        var active = currentDocument is { } activeId
+            ? new DbcPersistedDocument(activeId.Folder, activeId.FileName)
+            : null;
+        return new DbcWorkspaceSnapshot(
+            DbcWorkspaceSnapshot.CurrentSchemaVersion,
+            DateTimeOffset.UtcNow,
+            dbcWorkspace.Folders.ToArray(),
+            files,
+            openDocuments,
+            active);
+    }
+
+    private void SetPersistenceWarning(string warning)
+    {
+        persistenceEnabled = false;
+        persistenceError = warning;
+        persistenceNotice = warning;
+        operationStatus = "Local session could not be restored";
+    }
+
     private async Task UndoAsync()
     {
         if (workspace is null)
@@ -262,13 +862,26 @@
     {
         revision = args.ChangeSet.AfterRevision;
         UpdateStatusDiagnostics();
+        SchedulePersist();
         _ = RefreshAsync();
     }
 
     private void OnDocumentStoreChanged()
     {
         UpdateStatusDiagnostics();
+        if (currentDocument is { } documentId
+            && dbcWorkspace.Find(documentId) is { } file)
+        {
+            dbcProperty.Refresh(file);
+        }
+
+        SchedulePersist();
         _ = RefreshAsync();
+    }
+
+    private void OnEditorSessionsChanged()
+    {
+        SchedulePersist();
     }
 
     private void OnItemActivated(object? sender, ItemActivatedEventArgs args)
@@ -287,9 +900,12 @@
         if (dbcWorkspace.Find(documentId) is { } file)
         {
             dbcProperty.ShowFile(file);
+            currentEncoding = file.Encoding?.DisplayName;
+            currentUndefinedBytes = file.Encoding?.UndefinedByteCount ?? 0;
         }
 
         UpdateStatusDiagnostics();
+        SchedulePersist();
         _ = RefreshAsync();
     }
 
@@ -304,7 +920,11 @@
         currentDocumentItemId = null;
         errorCount = 0;
         warningCount = 0;
+        currentEncoding = null;
+        currentUndefinedBytes = 0;
+        paletteOpen = false;
         operationStatus = "Ready";
+        SchedulePersist();
         _ = RefreshAsync();
     }
 
@@ -383,9 +1003,40 @@
         workspace.DomainEvents.ItemClosed -= OnItemClosed;
         dbcWorkspace.Changed -= OnDocumentStoreChanged;
         dbcTree.DocumentSelectionChanged -= OnDocumentSelectionChanged;
+        Sessions.Changed -= OnEditorSessionsChanged;
+        persistenceDebounce?.Cancel();
+        persistenceDebounce?.Dispose();
+        persistenceDebounce = null;
         dbcTree.Dispose();
         dbcWorkspace.Dispose();
         await workspace.DisposeAsync();
         workspace = null;
+
+        if (paletteModule is not null)
+        {
+            try
+            {
+                await paletteModule.InvokeVoidAsync("disposeShortcut");
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+            catch (JSException)
+            {
+            }
+
+            try
+            {
+                await paletteModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+            catch (JSException)
+            {
+            }
+        }
+
+        paletteReference?.Dispose();
     }
 }

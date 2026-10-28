@@ -41,39 +41,58 @@
     }
     else
     {
-        @foreach (var folder in Model.Folders)
-        {
-            <div class="dbc-folder">
-                <button type="button"
-                        class="dbc-folder-name @(Model.SelectedFolder == folder ? "selected" : "")"
-                        data-testid="dbc-folder"
-                        aria-pressed="@(Model.SelectedFolder == folder ? "true" : "false")"
-                        @onclick="() => Model.SelectFolder(folder)">
-                    <DbcIcon Name="folder" CssClass="dbc-tree-icon" Size="14" />
-                    <span class="dbc-tree-label">@folder</span>
-                </button>
-                @foreach (var file in Model.FilesFor(folder))
-                {
-                    <button type="button"
-                            class="dbc-file @(IsSelected(file) ? "selected" : "")"
-                            data-testid="dbc-file"
-                            data-file-key="@file.Id.Key"
-                            aria-pressed="@(IsSelected(file) ? "true" : "false")"
-                            @onclick="() => Model.Select(file.Id)">
-                        <DbcIcon Name="file" CssClass="dbc-tree-icon" Size="14" />
-                        <span class="dbc-tree-label">@file.Id.FileName</span>
-                    </button>
-                }
-            </div>
-        }
+        <svg class="dbc-tree-sprite" aria-hidden="true" focusable="false">
+            <symbol id="dbc-tree-chevron-collapsed" viewBox="0 0 16 16">
+                <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor"
+                      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            </symbol>
+            <symbol id="dbc-tree-chevron-expanded" viewBox="0 0 16 16">
+                <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor"
+                      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            </symbol>
+        </svg>
+        <div class="dbc-tree-nodes">
+            <Tree DataSource="_treeNodes"
+                  SelectionMode="TreeSelectionMode.Multiple"
+                  SelectedIds="SelectedIds"
+                  SelectedIdsChanged="OnSelectedIdsChanged"
+                  ExpandedIds="_expandedIds"
+                  ExpandedIdsChanged="OnExpandedIdsChanged"
+                  ShowLink="false"
+                  aria-label="DBC folders and files"
+                  class="dbc-astrea-tree">
+                <IconTemplate Context="icon">
+                    <DbcIcon Name="@IconName(icon.Node)"
+                             CssClass="dbc-tree-icon"
+                             Size="14" />
+                </IconTemplate>
+                <NodeTemplate Context="node">
+                    @if (node.BindData is DbcTreeEntry entry)
+                    {
+                        <span class="dbc-tree-label"
+                              data-testid="@(entry.IsFolder ? "dbc-folder" : "dbc-file")"
+                              data-file-key="@entry.DocumentKey">@entry.Name</span>
+                    }
+                    else
+                    {
+                        <span class="dbc-tree-label">@node.Text</span>
+                    }
+                </NodeTemplate>
+            </Tree>
+        </div>
     }
 </div>
 
 @code {
     private const long MaxUploadBytes = 4 * 1024 * 1024;
+    private const string FolderPrefix = "folder:";
+    private const string FilePrefix = "file:";
 
     private string? _uploadMessage;
     private bool _uploadFailed;
+    private List<TreeNode> _treeNodes = new();
+    private readonly Dictionary<string, DbcTreeEntry> _entries = new(StringComparer.Ordinal);
+    private HashSet<string> _expandedIds = new(StringComparer.Ordinal);
 
     [Parameter, EditorRequired]
     public DbcTreeModel Model { get; set; } = null!;
@@ -83,20 +102,146 @@
         ?? Model.Folders.FirstOrDefault()
         ?? "DBC";
 
+    private IReadOnlyCollection<string> SelectedIds
+    {
+        get
+        {
+            var ids = new List<string>(2);
+            if (Model.SelectedFolder is { } folder)
+            {
+                ids.Add(FolderNodeId(folder));
+            }
+
+            if (Model.SelectedDocument is { } document
+                && !ids.Contains(FileNodeId(document), StringComparer.Ordinal))
+            {
+                ids.Add(FileNodeId(document));
+            }
+
+            return ids;
+        }
+    }
+
     protected override void OnInitialized()
     {
         Model.StateChanged += OnModelChanged;
+        RebuildTree();
     }
 
     private void OnModelChanged()
     {
+        RebuildTree();
         _ = InvokeAsync(StateHasChanged);
     }
 
-    private bool IsSelected(DbcFileEntry file)
+    private void RebuildTree()
     {
-        return Model.SelectedDocument == file.Id;
+        var previousFolderIds = _entries
+            .Where(entry => entry.Value.IsFolder)
+            .Select(entry => entry.Key)
+            .ToHashSet(StringComparer.Ordinal);
+        var currentFolderIds = new HashSet<string>(StringComparer.Ordinal);
+        _entries.Clear();
+        var nodes = new List<TreeNode>(Model.Folders.Count);
+        foreach (var folder in Model.Folders)
+        {
+            var folderEntry = new DbcTreeEntry(true, folder, null, null);
+            var folderNode = new TreeNode(
+                folder,
+                id: FolderNodeId(folder),
+                isExpanded: true,
+                bindData: folderEntry);
+            folderNode.SetCssClass("dbc-tree-folder-node");
+            folderNode.CollapsedIcon = "#dbc-tree-chevron-collapsed";
+            folderNode.ExpandedIcon = "#dbc-tree-chevron-expanded";
+            _entries[folderNode.Id] = folderEntry;
+            currentFolderIds.Add(folderNode.Id);
+            if (!previousFolderIds.Contains(folderNode.Id))
+            {
+                _expandedIds.Add(folderNode.Id);
+            }
+
+            foreach (var file in Model.FilesFor(folder))
+            {
+                var fileEntry = new DbcTreeEntry(
+                    false,
+                    file.Id.FileName,
+                    file.Id,
+                    file.Id.Key);
+                var fileNode = new TreeNode(
+                    file.Id.FileName,
+                    id: FileNodeId(file.Id),
+                    bindData: fileEntry);
+                fileNode.SetCssClass("dbc-tree-file-node");
+                folderNode.Add(fileNode);
+                _entries[fileNode.Id] = fileEntry;
+            }
+
+            nodes.Add(folderNode);
+        }
+
+        _expandedIds.RemoveWhere(id => !currentFolderIds.Contains(id));
+        _treeNodes = nodes;
     }
+
+    private void OnExpandedIdsChanged(IReadOnlyCollection<string> ids)
+    {
+        _expandedIds = new HashSet<string>(ids, StringComparer.Ordinal);
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void OnSelectedIdsChanged(IReadOnlyCollection<string> ids)
+    {
+        string? folderId = null;
+        string? fileId = null;
+        foreach (var id in ids)
+        {
+            if (!_entries.TryGetValue(id, out var candidate))
+            {
+                continue;
+            }
+
+            if (candidate.IsFolder)
+            {
+                folderId = id;
+            }
+            else if (candidate.DocumentId is not null)
+            {
+                fileId = id;
+            }
+        }
+
+        var selectedId = fileId ?? folderId;
+        if (selectedId is null)
+        {
+            return;
+        }
+
+        var entry = _entries[selectedId];
+        if (entry.IsFolder)
+        {
+            Model.SelectFolder(entry.Name);
+        }
+        else if (entry.DocumentId is { } document)
+        {
+            Model.Select(document);
+        }
+    }
+
+    private static string FolderNodeId(string folder) => FolderPrefix + folder;
+
+    private static string FileNodeId(DbcDocumentId document) => FilePrefix + document.Key;
+
+    private static string IconName(TreeNode node)
+    {
+        return node.BindData is DbcTreeEntry { IsFolder: true } ? "folder" : "file";
+    }
+
+    public sealed record DbcTreeEntry(
+        bool IsFolder,
+        string Name,
+        DbcDocumentId? DocumentId,
+        string? DocumentKey);
 
     private void OnNewFolder()
     {
@@ -139,7 +284,10 @@
                     Model.NewFolder(folder);
                 }
 
-                var result = Model.Upload(new DbcDocumentId(folder, file.Name), read.Content);
+                var result = Model.Upload(
+                    new DbcDocumentId(folder, file.Name),
+                    read.Content,
+                    read.Encoding);
                 if (result.HasParseErrors)
                 {
                     messages.Add(
