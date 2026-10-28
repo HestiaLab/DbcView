@@ -2,7 +2,12 @@
 @using Atlas.Blazor.Content
 @using DbcView.Domain
 @using DbcView.Web.ViewModels
-@implements IDisposable
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject DbcEditorNavigation Navigation
+@inject DbcEditorSessionRegistry Sessions
 
 <div class="dbc-editor" data-testid="dbc-editor" aria-label="DBC editor">
     @if (Model.DocumentId is null)
@@ -30,6 +35,17 @@
                         aria-pressed="@(Model.Mode == DbcEditorModel.ViewMode.Table ? "true" : "false")"
                         @onclick="() => Model.SetMode(DbcEditorModel.ViewMode.Table)">Table</button>
             </div>
+            <div class="dbc-editor-document-actions" role="group" aria-label="Document actions">
+                <button type="button"
+                        class="dbc-action"
+                        data-testid="dbc-download"
+                        @onclick="OnDownloadAsync">Download</button>
+                <button type="button"
+                        class="dbc-action"
+                        data-testid="dbc-revert-all"
+                        disabled="@(!Model.HasSessionEdits)"
+                        @onclick="OnRevertAll">Revert all edits</button>
+            </div>
         </div>
 
         @if (_titleFailure is not null)
@@ -52,6 +68,35 @@
             <div class="dbc-alert error" role="alert" data-testid="dbc-save-error">
                 <DbcIcon Name="error" Size="14" />
                 <span>@Model.SaveError</span>
+            </div>
+        }
+
+        @if (_navigationWarning is not null)
+        {
+            <div class="dbc-alert warning" role="status" data-testid="dbc-source-warning">
+                <DbcIcon Name="warning" Size="14" />
+                <span>@_navigationWarning</span>
+            </div>
+        }
+
+        @if (_downloadFailure is not null)
+        {
+            <div class="dbc-alert error" role="alert" data-testid="dbc-download-error">
+                <DbcIcon Name="error" Size="14" />
+                <div class="dbc-alert-body">
+                    <p>@_downloadFailure</p>
+                    @if (_downloadDiagnostics.Count > 0)
+                    {
+                        <DbcDiagnosticList Diagnostics="_downloadDiagnostics" />
+                    }
+                </div>
+            </div>
+        }
+        else if (_downloadNotice is not null)
+        {
+            <div class="dbc-alert success" role="status" data-testid="dbc-download-notice">
+                <DbcIcon Name="check" Size="14" />
+                <span>@_downloadNotice</span>
             </div>
         }
 
@@ -94,10 +139,13 @@
         @if (Model.Mode == DbcEditorModel.ViewMode.Text)
         {
             <div class="dbc-editor-text">
-                <textarea @bind="Model.EditedContent"
+                <textarea value="@Model.EditedContent"
+                          @ref="_textarea"
                           class="dbc-textarea"
                           spellcheck="false"
-                          aria-label="DBC raw text"></textarea>
+                          aria-label="DBC raw text"
+                          @oninput="OnTextInput"
+                          @onchange="OnTextInput"></textarea>
                 <div class="dbc-editor-actions">
                     <button type="button" class="dbc-action primary"
                             data-testid="dbc-save"
@@ -134,51 +182,84 @@
                 }
                 else
                 {
-                    <table class="dbc-table">
-                        <thead>
-                            <tr>
-                                <th scope="col">Id</th>
-                                <th scope="col">Name</th>
-                                <th scope="col">Len</th>
-                                <th scope="col">Transmitter</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var message in Model.Document.Messages)
-                            {
-                                <tr class="dbc-message-row" data-message-id="@message.Id">
-                                    <td>@message.Id</td>
-                                    <td>
-                                        <button type="button"
-                                                class="dbc-link"
-                                                data-testid="dbc-message"
-                                                @onclick="() => HandleMessageSelected(message)">
-                                            @message.Name
-                                        </button>
-                                    </td>
-                                    <td>@message.Length</td>
-                                    <td>@message.Transmitter</td>
-                                </tr>
-                                @foreach (var signal in message.Signals)
+                    @if (_keyboardFailure is not null)
+                    {
+                        <div class="dbc-alert warning" role="status" data-testid="dbc-keyboard-warning">
+                            <DbcIcon Name="warning" Size="14" />
+                            <span>@_keyboardFailure</span>
+                        </div>
+                    }
+                    <div class="dbc-editor-table">
+                        <div class="dbc-table-toolbar">
+                            <span class="dbc-table-summary" data-testid="dbc-table-summary">
+                                @Model.MessageCount messages · @Model.SignalCount signals
+                            </span>
+                            <div class="dbc-table-actions" role="group" aria-label="Table expansion">
+                                <button type="button"
+                                        class="dbc-action"
+                                        data-testid="dbc-expand-all"
+                                        disabled="@Model.AllMessagesExpanded"
+                                        @onclick="ExpandAll">Expand all</button>
+                                <button type="button"
+                                        class="dbc-action"
+                                        data-testid="dbc-collapse-all"
+                                        disabled="@(!Model.HasExpandedMessages)"
+                                        @onclick="CollapseAll">Collapse all</button>
+                            </div>
+                        </div>
+                        <div class="dbc-table"
+                             data-testid="dbc-table"
+                             role="table"
+                             @ref="_tableRoot"
+                             aria-label="DBC messages and signals"
+                             aria-rowcount="@Model.RowCount">
+                            <div class="dbc-table-head" role="rowgroup">
+                                <div class="dbc-table-row dbc-table-header" role="row">
+                                    <div role="columnheader" class="dbc-cell dbc-cell-id">Id</div>
+                                    <div role="columnheader" class="dbc-cell dbc-row-name">Name</div>
+                                    <div role="columnheader" class="dbc-cell dbc-cell-length">Len</div>
+                                    <div role="columnheader" class="dbc-cell dbc-cell-signals">Signals</div>
+                                    <div role="columnheader" class="dbc-cell dbc-cell-transmitter">Transmitter</div>
+                                </div>
+                            </div>
+                            <div class="dbc-table-body"
+                                 data-testid="dbc-table-scroll"
+                                 role="rowgroup"
+                                 @ref="_scrollContainer">
+                                @if (UseVirtualization)
                                 {
-                                    <tr class="dbc-signal-row" data-signal-id="@signal.Name">
-                                        <td></td>
-                                        <td>
-                                            <button type="button"
-                                                    class="dbc-link dbc-signal-link"
-                                                    data-testid="dbc-signal"
-                                                    @onclick="() => HandleSignalSelected(signal)">
-                                                <DbcIcon Name="signal" Size="12" />
-                                                <span>@signal.Name</span>
-                                            </button>
-                                        </td>
-                                        <td>@signal.Length</td>
-                                        <td>@signal.Receiver</td>
-                                    </tr>
+                                    <Virtualize @ref="_virtualizer"
+                                                ItemsProvider="_rowsProvider"
+                                                ItemSize="RowHeight"
+                                                SpacerElement="div"
+                                                OverscanCount="6">
+                                        <ItemContent Context="row">
+                                            <DbcTableRowView Row="row"
+                                                             IsActive="IsActiveRow(row)"
+                                                             IsSelected="IsSelectedRow(row)"
+                                                             OnSelect="args => SelectRow(row, args)"
+                                                             OnToggle="() => ToggleRow(row)"
+                                                             OnFocus="() => SetActiveRow(row)"
+                                                             OnKeyDown="args => HandleRowKeyDown(row, args)" />
+                                        </ItemContent>
+                                    </Virtualize>
                                 }
-                            }
-                        </tbody>
-                    </table>
+                                else
+                                {
+                                    @foreach (var row in Model.EnumerateRows())
+                                    {
+                                        <DbcTableRowView Row="row"
+                                                         IsActive="IsActiveRow(row)"
+                                                         IsSelected="IsSelectedRow(row)"
+                                                         OnSelect="args => SelectRow(row, args)"
+                                                         OnToggle="() => ToggleRow(row)"
+                                                         OnFocus="() => SetActiveRow(row)"
+                                                         OnKeyDown="args => HandleRowKeyDown(row, args)" />
+                                    }
+                                }
+                            </div>
+                        </div>
+                    </div>
                 }
             </div>
         }
@@ -186,9 +267,33 @@
 </div>
 
 @code {
+    private const int RowHeight = 32;
+    private const int PageSize = 10;
+
     private string? _syncedTitle;
     private string? _saveFailure;
     private string? _titleFailure;
+    private ElementReference _scrollContainer;
+    private ElementReference _tableRoot;
+    private IJSObjectReference? _jsModule;
+    private Virtualize<DbcTableRow>? _virtualizer;
+    private ItemsProviderDelegate<DbcTableRow> _rowsProvider = null!;
+    private string? _activeRowKey;
+    private string? _selectedRowKey;
+    private string? _pendingFocusKey;
+    private int? _pendingScrollIndex;
+    private (int Start, int Length)? _pendingTextSelection;
+    private ElementReference _textarea;
+    private string? _navigationWarning;
+    private string? _downloadNotice;
+    private string? _downloadFailure;
+    private IReadOnlyList<DbcDiagnostic> _downloadDiagnostics = Array.Empty<DbcDiagnostic>();
+    private string? _keyboardFailure;
+    private bool _jsImportAttempted;
+    private bool _keyboardSetupFailed;
+    private long _suppressKeyboardSelectUntil;
+
+    private bool UseVirtualization => OperatingSystem.IsBrowser();
 
     /// <summary>
     /// The editor model. Single-panel tests pass it directly; the workspace
@@ -198,16 +303,12 @@
     [Parameter]
     public DbcEditorModel Model { get; set; } = null!;
 
-    [Parameter, EditorRequired]
+    [Parameter]
     public AtlasContentContext Content { get; set; } = null!;
 
     /// <summary>Gets or sets the application workspace used to resolve models from Context.</summary>
     [Parameter]
     public DbcFileWorkspace? Workspace { get; set; }
-
-    /// <summary>Gets or sets the explorer model used to open the current selection into a fresh model.</summary>
-    [Parameter]
-    public DbcTreeModel? Tree { get; set; }
 
     [Parameter]
     public EventCallback<DbcMessage> OnMessageSelected { get; set; }
@@ -229,6 +330,134 @@
         }
 
         Model.StateChanged += OnModelChanged;
+        Navigation.Requested += OnNavigationRequested;
+        Sessions.Register(Model);
+        _rowsProvider = ProvideRowsAsync;
+        EnsureActiveRow();
+        ApplyRestoredMode(Model);
+
+        if (Navigation.Pending is { } pending)
+        {
+            OnNavigationRequested(pending);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (OperatingSystem.IsBrowser()
+            && !_jsImportAttempted
+            && Model.DocumentId is not null)
+        {
+            _jsImportAttempted = true;
+            try
+            {
+                _jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/dbc-table.js");
+            }
+            catch (JSException)
+            {
+                _keyboardFailure = "The table keyboard helper could not be loaded.";
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+
+        if (_pendingTextSelection is { } textSelection)
+        {
+            _pendingTextSelection = null;
+            if (_jsModule is not null && !_keyboardSetupFailed)
+            {
+                try
+                {
+                    await _jsModule.InvokeVoidAsync(
+                        "selectTextRange",
+                        _textarea,
+                        textSelection.Start,
+                        textSelection.Length);
+                }
+                catch (JSDisconnectedException)
+                {
+                }
+                catch (JSException)
+                {
+                }
+            }
+        }
+
+        if (_jsModule is not null
+            && !_keyboardSetupFailed
+            && Model.Mode == DbcEditorModel.ViewMode.Table
+            && Model.RowCount > 0)
+        {
+            try
+            {
+                await _jsModule.InvokeVoidAsync("installKeyboardGuard", _scrollContainer);
+                await _jsModule.InvokeVoidAsync("watchScrollbarGutter", _tableRoot, _scrollContainer);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+            catch (JSException)
+            {
+                _keyboardSetupFailed = true;
+                _keyboardFailure = "The table keyboard helper could not be initialized.";
+            }
+        }
+
+        if (_pendingScrollIndex is int scrollIndex)
+        {
+            _pendingScrollIndex = null;
+            if (_jsModule is not null && !_keyboardSetupFailed)
+            {
+                try
+                {
+                    await _jsModule.InvokeVoidAsync(
+                        "scrollToRow",
+                        _scrollContainer,
+                        scrollIndex,
+                        RowHeight);
+                }
+                catch (JSDisconnectedException)
+                {
+                }
+                catch (JSException)
+                {
+                }
+            }
+        }
+
+        if (_pendingFocusKey is not null)
+        {
+            var key = _pendingFocusKey;
+            var index = Model.TryGetRowIndex(key, out var targetIndex) ? targetIndex : -1;
+            if (_jsModule is null || _keyboardSetupFailed || index < 0)
+            {
+                _pendingFocusKey = null;
+            }
+            else
+            {
+                try
+                {
+                    var focused = await _jsModule.InvokeAsync<bool>(
+                        "focusRow",
+                        _scrollContainer,
+                        index);
+                    if (!focused
+                        && string.Equals(_pendingFocusKey, key, StringComparison.Ordinal))
+                    {
+                        _pendingFocusKey = null;
+                    }
+                }
+                catch (JSDisconnectedException)
+                {
+                    _pendingFocusKey = null;
+                }
+                catch (JSException)
+                {
+                    _keyboardSetupFailed = true;
+                    _keyboardFailure = "The table keyboard helper could not move focus.";
+                    _pendingFocusKey = null;
+                }
+            }
+        }
     }
 
     private DbcEditorModel CreateModel()
@@ -242,25 +471,78 @@
         var model = new DbcEditorModel(Workspace);
 
         // The factory runs once per ContentReference, when the item first
-        // renders. At that moment the explorer selection is the file this tab
-        // was opened for, so open it into the fresh model.
-        if (Tree?.SelectedDocument is { } selected
-            && DbcDocumentId.TryParseKey(Content.Reference.ResourceId, out var resourceId)
-            && resourceId == selected)
+        // renders. Resolve the document from the tab's own resource id instead
+        // of relying on explorer selection, so restored tabs open their own
+        // file even when the tree selection was not persisted.
+        if (DbcDocumentId.TryParseKey(Content.Reference.ResourceId, out var resourceId)
+            && Workspace.Find(resourceId) is { } file)
         {
-            var file = Workspace.Find(selected);
-            if (file is not null)
-            {
-                model.Open(file);
-            }
+            model.Open(file);
+            ApplyRestoredMode(model);
         }
 
         return model;
     }
 
+    private void ApplyRestoredMode(DbcEditorModel model)
+    {
+        if (model.DocumentId is { } documentId
+            && Sessions.TryTakeRestoredMode(documentId, out var mode))
+        {
+            model.SetMode(mode);
+        }
+    }
+
     private void OnModelChanged()
     {
-        _ = RefreshAsync();
+        if (Model.Mode != DbcEditorModel.ViewMode.Table)
+        {
+            _virtualizer = null;
+        }
+
+        EnsureActiveRow();
+        if (Model.DocumentId is not null)
+        {
+            Sessions.Register(Model);
+        }
+        else
+        {
+            Sessions.NotifyChanged();
+        }
+
+        _ = RefreshRowsAsync();
+    }
+
+    private async Task RefreshRowsAsync()
+    {
+        if (_virtualizer is not null && Model.Mode == DbcEditorModel.ViewMode.Table)
+        {
+            await _virtualizer.RefreshDataAsync();
+        }
+
+        await RefreshAsync();
+    }
+
+    private ValueTask<ItemsProviderResult<DbcTableRow>> ProvideRowsAsync(
+        ItemsProviderRequest request)
+    {
+        var total = Model.RowCount;
+        var start = Math.Min(request.StartIndex, total);
+        var count = Math.Min(request.Count, total - start);
+        if (count <= 0)
+        {
+            return ValueTask.FromResult(
+                new ItemsProviderResult<DbcTableRow>(Array.Empty<DbcTableRow>(), total));
+        }
+
+        var items = new DbcTableRow[count];
+        for (var index = 0; index < count; index++)
+        {
+            items[index] = Model.GetRow(start + index);
+        }
+
+        return ValueTask.FromResult(
+            new ItemsProviderResult<DbcTableRow>(items, total));
     }
 
     private async Task RefreshAsync()
@@ -283,12 +565,22 @@
         }
     }
 
+    private void OnTextInput(ChangeEventArgs args)
+    {
+        Model.EditedContent = args.Value?.ToString() ?? string.Empty;
+        Sessions.NotifyChanged();
+    }
+
     private void OnSave()
     {
         _saveFailure = null;
         try
         {
-            Model.Save();
+            var outcome = Model.Save();
+            if (outcome.Saved)
+            {
+                _navigationWarning = null;
+            }
         }
         catch (Exception ex)
         {
@@ -296,18 +588,401 @@
         }
     }
 
-    private Task HandleMessageSelected(DbcMessage message)
+    private async Task OnDownloadAsync()
     {
-        return OnMessageSelected.InvokeAsync(message);
+        _downloadNotice = null;
+        _downloadFailure = null;
+        _downloadDiagnostics = Array.Empty<DbcDiagnostic>();
+
+        var parse = Model.ValidateDownload();
+        if (parse.HasErrors)
+        {
+            _downloadFailure =
+                $"Download blocked: the current text has {parse.ErrorCount} DBC error(s).";
+            _downloadDiagnostics = parse.Diagnostics;
+            return;
+        }
+
+        var fileName = Model.DownloadFileName;
+        if (fileName is null)
+        {
+            _downloadFailure = "Download blocked: no document is open.";
+            return;
+        }
+
+        if (!OperatingSystem.IsBrowser() || _jsModule is null)
+        {
+            _downloadNotice = "Download is available in the browser.";
+            return;
+        }
+
+        try
+        {
+            await _jsModule.InvokeVoidAsync("downloadText", fileName, Model.EditedContent);
+            var conversion = Model.DownloadEncodingNotice;
+            _downloadNotice = conversion is null
+                ? $"Prepared {fileName} as UTF-8."
+                : $"Prepared {fileName} as UTF-8. {conversion}";
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (JSException ex)
+        {
+            _downloadFailure = $"Download failed: {ex.Message}";
+        }
     }
 
-    private Task HandleSignalSelected(DbcSignal signal)
+    private void OnRevertAll()
     {
-        return OnSignalSelected.InvokeAsync(signal);
+        _downloadNotice = null;
+        _downloadFailure = null;
+        _downloadDiagnostics = Array.Empty<DbcDiagnostic>();
+        if (Model.RevertAllEdits())
+        {
+            _navigationWarning = null;
+            _saveFailure = null;
+        }
     }
 
-    public void Dispose()
+    private bool IsActiveRow(DbcTableRow row)
+    {
+        return string.Equals(_activeRowKey, row.Key, StringComparison.Ordinal);
+    }
+
+    private bool IsSelectedRow(DbcTableRow row)
+    {
+        return string.Equals(_selectedRowKey, row.Key, StringComparison.Ordinal);
+    }
+
+    private void SetActiveRow(DbcTableRow row)
+    {
+        if (_pendingFocusKey is not null)
+        {
+            if (!string.Equals(_pendingFocusKey, row.Key, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _pendingFocusKey = null;
+        }
+
+        if (IsActiveRow(row))
+        {
+            return;
+        }
+
+        _activeRowKey = row.Key;
+        StateHasChanged();
+    }
+
+    private Task SelectRow(DbcTableRow row, MouseEventArgs args)
+    {
+        // Enter used to choose a palette result can also click the row that
+        // receives focus right after the jump. Ignore that synthesized click
+        // (Detail == 0) for a short window; a real mouse click still selects.
+        if (args.Detail == 0 && Environment.TickCount64 < _suppressKeyboardSelectUntil)
+        {
+            _suppressKeyboardSelectUntil = 0;
+            return Task.CompletedTask;
+        }
+
+        _suppressKeyboardSelectUntil = 0;
+        _pendingFocusKey = null;
+        _activeRowKey = row.Key;
+        _selectedRowKey = row.Key;
+
+        if (row.IsMessage)
+        {
+            return OnMessageSelected.InvokeAsync(row.Message);
+        }
+
+        return row.Signal is not null
+            ? OnSignalSelected.InvokeAsync(row.Signal)
+            : Task.CompletedTask;
+    }
+
+    private void ToggleRow(DbcTableRow row)
+    {
+        if (!row.IsMessage)
+        {
+            return;
+        }
+
+        _pendingFocusKey = null;
+        Model.ToggleExpanded(row.Message);
+        _activeRowKey = string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"m:{row.MessageIndex}");
+
+        if (_selectedRowKey is not null && !Model.TryGetRowIndex(_selectedRowKey, out _))
+        {
+            _selectedRowKey = null;
+        }
+    }
+
+    private void ExpandAll()
+    {
+        _pendingFocusKey = null;
+        Model.ExpandAll();
+        EnsureActiveRow();
+    }
+
+    private void CollapseAll()
+    {
+        _pendingFocusKey = null;
+        Model.CollapseAll();
+        EnsureActiveRow();
+    }
+
+    private async Task HandleRowKeyDown(DbcTableRow row, KeyboardEventArgs args)
+    {
+        switch (args.Key)
+        {
+            case "ArrowDown":
+                await MoveToRowAsync(row.Index + 1);
+                break;
+            case "ArrowUp":
+                await MoveToRowAsync(row.Index - 1);
+                break;
+            case "Home":
+                await MoveToRowAsync(0);
+                break;
+            case "End":
+                await MoveToRowAsync(Model.RowCount - 1);
+                break;
+            case "PageDown":
+                await MoveToRowAsync(row.Index + PageSize);
+                break;
+            case "PageUp":
+                await MoveToRowAsync(row.Index - PageSize);
+                break;
+            case "ArrowRight":
+                if (row.IsMessage && !row.IsExpanded)
+                {
+                    ToggleRow(row);
+                }
+
+                break;
+            case "ArrowLeft":
+                if (row.IsMessage && row.IsExpanded)
+                {
+                    ToggleRow(row);
+                }
+
+                break;
+        }
+    }
+
+    private async Task MoveToRowAsync(int index)
+    {
+        if (Model.RowCount == 0)
+        {
+            return;
+        }
+
+        index = Math.Clamp(index, 0, Model.RowCount - 1);
+        var target = Model.GetRow(index);
+        _activeRowKey = target.Key;
+        _pendingFocusKey = target.Key;
+
+        if (_jsModule is not null)
+        {
+            try
+            {
+                await _jsModule.InvokeVoidAsync("scrollToRow", _scrollContainer, index, RowHeight);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    private void EnsureActiveRow()
+    {
+        if (Model.RowCount == 0)
+        {
+            _activeRowKey = null;
+            _selectedRowKey = null;
+            return;
+        }
+
+        if (_activeRowKey is null || !Model.TryGetRowIndex(_activeRowKey, out _))
+        {
+            _activeRowKey = Model.GetRow(0).Key;
+        }
+
+        if (_selectedRowKey is not null && !Model.TryGetRowIndex(_selectedRowKey, out _))
+        {
+            _selectedRowKey = null;
+        }
+    }
+
+    private void OnNavigationRequested(DbcEditorNavigationRequest request)
+    {
+        if (Model.DocumentId != request.DocumentId || Model.Document is not { } document)
+        {
+            return;
+        }
+
+        if (request.Reload)
+        {
+            if (Workspace?.Find(request.DocumentId) is { } reloaded)
+            {
+                Model.Reload(reloaded);
+            }
+
+            Navigation.Clear(request);
+            _ = InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        if (request.SourceLine is int sourceLine)
+        {
+            NavigateToSource(request, sourceLine);
+            return;
+        }
+
+        if (request.MessageId is not uint messageId)
+        {
+            return;
+        }
+
+        var messageIndex = FindMessageIndex(document, messageId);
+        if (messageIndex < 0)
+        {
+            return;
+        }
+
+        var message = document.Messages[messageIndex];
+        Model.SetMode(DbcEditorModel.ViewMode.Table);
+        Model.ExpandMessage(message);
+
+        var signalIndex = FindSignalIndex(message, request.SignalName);
+        var key = signalIndex >= 0
+            ? string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"s:{messageIndex}:{signalIndex}")
+            : string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"m:{messageIndex}");
+        if (!Model.TryGetRowIndex(key, out var rowIndex))
+        {
+            return;
+        }
+
+        _activeRowKey = key;
+        _selectedRowKey = key;
+        _pendingFocusKey = key;
+        _pendingScrollIndex = rowIndex;
+        _suppressKeyboardSelectUntil = Environment.TickCount64 + 500;
+        _navigationWarning = null;
+        Navigation.Clear(request);
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void NavigateToSource(DbcEditorNavigationRequest request, int sourceLine)
+    {
+        if (Model.RawContent is not { } rawContent)
+        {
+            Navigation.Clear(request);
+            return;
+        }
+
+        if (!string.Equals(Model.EditedContent, rawContent, StringComparison.Ordinal))
+        {
+            _navigationWarning = "Save the document before locating source lines.";
+            Navigation.Clear(request);
+            _ = InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        var span = Model.ParseResult?.StatementSpans.FirstOrDefault(
+            candidate => candidate.LineNumber == sourceLine);
+        if (span is not { } located
+            || located.Length <= 0
+            || located.Start < 0
+            || located.Start >= rawContent.Length)
+        {
+            _navigationWarning = $"The statement at line {sourceLine} was not found.";
+            Navigation.Clear(request);
+            _ = InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        var length = Math.Min(located.Length, rawContent.Length - located.Start);
+        while (length > 0)
+        {
+            var last = rawContent[located.Start + length - 1];
+            if (last is not ('\r' or '\n'))
+            {
+                break;
+            }
+
+            length--;
+        }
+
+        Model.SetMode(DbcEditorModel.ViewMode.Text);
+        _navigationWarning = null;
+        _pendingTextSelection = (located.Start, length);
+        Navigation.Clear(request);
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private static int FindMessageIndex(DbcDocument document, uint messageId)
+    {
+        for (var index = 0; index < document.Messages.Count; index++)
+        {
+            if (document.Messages[index].Id == messageId)
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private static int FindSignalIndex(DbcMessage message, string? signalName)
+    {
+        if (string.IsNullOrEmpty(signalName))
+        {
+            return -1;
+        }
+
+        for (var index = 0; index < message.Signals.Count; index++)
+        {
+            if (string.Equals(
+                    message.Signals[index].Name,
+                    signalName,
+                    StringComparison.Ordinal))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    public async ValueTask DisposeAsync()
     {
         Model.StateChanged -= OnModelChanged;
+        Navigation.Requested -= OnNavigationRequested;
+        Sessions.Unregister(Model);
+
+        if (_jsModule is not null)
+        {
+            try
+            {
+                await _jsModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+            catch (JSException)
+            {
+            }
+        }
     }
 }

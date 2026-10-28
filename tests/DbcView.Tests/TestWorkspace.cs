@@ -16,13 +16,14 @@ internal static class TestWorkspace
         this DbcFileWorkspace workspace,
         string folder,
         string fileName,
-        string content)
+        string content,
+        DbcFileEncoding? encoding = null)
     {
         if (!workspace.Folders.Contains(folder, StringComparer.Ordinal))
         {
             workspace.CreateFolder(folder);
         }
 
-        return workspace.Upload(new DbcDocumentId(folder, fileName), content);
+        return workspace.Upload(new DbcDocumentId(folder, fileName), content, encoding);
     }
 }

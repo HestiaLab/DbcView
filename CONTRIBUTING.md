@@ -10,6 +10,8 @@ never references Atlas source projects.
 
 - The only dependency on Atlas is the published `Atlas.Blazor` NuGet package;
   `Atlas.Core` is embedded in that package (single-package distribution).
+- The explorer tree consumes the published `Astrea.Components` NuGet package;
+  it is never referenced by source either.
 - `src/DbcView.Domain`, `src/DbcView.Application`, and
   `src/DbcView.Infrastructure` have no Atlas dependency. `src/DbcView`
   (presentation and composition root) is the only project that references

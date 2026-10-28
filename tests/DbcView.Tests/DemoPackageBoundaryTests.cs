@@ -21,6 +21,7 @@ public sealed class DemoPackageBoundaryTests
             "DbcView.Infrastructure",
             "DbcView.Web",
         },
+        ["DbcView.BrowserTests"] = Array.Empty<string>(),
     };
 
     [Fact]
@@ -29,7 +30,7 @@ public sealed class DemoPackageBoundaryTests
         var root = FindRepositoryRoot();
 
         var productProjects = ControlledProjects(root)
-            .Where(path => !path.EndsWith("DbcView.Tests.csproj", StringComparison.Ordinal))
+            .Where(path => Path.GetFileName(path) is not ("DbcView.Tests.csproj" or "DbcView.BrowserTests.csproj"))
             .ToArray();
 
         foreach (var projectPath in productProjects)

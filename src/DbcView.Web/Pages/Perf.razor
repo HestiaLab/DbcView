@@ -1,0 +1,290 @@
+@page "/perf"
+@using System.Diagnostics
+@using System.Globalization
+@using DbcView.Application
+@using DbcView.Domain
+@using DbcView.Infrastructure
+@using DbcView.Infrastructure.Syntax
+@using DbcView.Web.Components
+@using DbcView.Web.Services
+@using DbcView.Web.ViewModels
+@implements IDisposable
+
+<PageTitle>DbcView performance probe</PageTitle>
+
+<main class="dbc-perf" data-testid="dbc-perf">
+    <header class="dbc-perf-header">
+        <h1>DbcView performance probe</h1>
+        <p>
+            Development-only 4 MB envelope. <code>DbcParser.Parse</code> now uses the P1 syntax tree;
+            the parser spike reports full parse, incremental reuse, P1 document construction and the
+            lazy semantic index. Use Chrome DevTools Performance for scroll and long-task traces; the
+            first probe records parse, layout, expand and first render.
+        </p>
+        <button type="button"
+                class="dbc-action primary"
+                data-testid="dbc-perf-run"
+                disabled="@_running"
+                @onclick="RunProbeAsync">Run 4 MB probe</button>
+        <button type="button"
+                class="dbc-action"
+                data-testid="dbc-parser-spike-run"
+                disabled="@_parserRunning"
+                @onclick="RunParserSpikeAsync">Run parser spike</button>
+    </header>
+
+    <pre class="dbc-perf-report" data-testid="dbc-perf-report">@_report</pre>
+    <pre class="dbc-perf-report" data-testid="dbc-parser-spike-report">@_parserReport</pre>
+
+    @if (_model is not null)
+    {
+        <div class="dbc-perf-table" data-testid="dbc-perf-table">
+            <DbcEditorPanel @key="_probeVersion" Model="_model" />
+        </div>
+    }
+</main>
+
+@code {
+    private bool _running;
+    private bool _parserRunning;
+    private string _report =
+        "Run the probe to generate a 4 MB DBC envelope and measure parse, layout, " +
+        "expand-all, managed memory and first render.";
+    private string _parserReport =
+        "Run the parser spike to measure full parse, single-statement incremental edit, green node " +
+        "reuse, lazy red build, P1 document construction and the lazy semantic index.";
+    private DbcFileWorkspace? _workspace;
+    private DbcEditorModel? _model;
+    private int _probeVersion;
+    private Stopwatch? _renderWatch;
+    private bool _measureRender;
+
+    private async Task RunProbeAsync()
+    {
+        if (_running)
+        {
+            return;
+        }
+
+        _running = true;
+        ClearProbe();
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var content = DbcSyntheticGenerator.Create();
+            var workspace = new DbcFileWorkspace(
+                new InMemoryDbcFileRepository(),
+                new DbcCodec());
+            workspace.CreateFolder("perf");
+
+            var parseWatch = Stopwatch.StartNew();
+            var entry = workspace.Upload(new DbcDocumentId("perf", "envelope.dbc"), content);
+            parseWatch.Stop();
+
+            var model = new DbcEditorModel(workspace);
+            var openWatch = Stopwatch.StartNew();
+            model.Open(entry);
+            openWatch.Stop();
+
+            var expandWatch = Stopwatch.StartNew();
+            model.ExpandAll();
+            expandWatch.Stop();
+
+            var managedMb = GC.GetTotalMemory(false) / 1024d / 1024d;
+
+            _report = string.Join(
+                Environment.NewLine,
+                $"file-bytes={content.Length.ToString("N0", CultureInfo.InvariantCulture)}",
+                $"messages={model.MessageCount.ToString("N0", CultureInfo.InvariantCulture)}",
+                $"signals={model.SignalCount.ToString("N0", CultureInfo.InvariantCulture)}",
+                $"expanded-rows={model.RowCount.ToString("N0", CultureInfo.InvariantCulture)}",
+                $"parse={parseWatch.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture)}ms",
+                $"open-layout={openWatch.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture)}ms",
+                $"expand-all={expandWatch.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture)}ms",
+                $"managed-memory={managedMb.ToString("0.0", CultureInfo.InvariantCulture)}MB");
+
+            _workspace = workspace;
+            _model = model;
+            _probeVersion++;
+            _renderWatch = Stopwatch.StartNew();
+            _measureRender = true;
+        }
+        catch (Exception ex)
+        {
+            _report = $"Probe failed: {ex.Message}";
+            ClearProbe();
+        }
+        finally
+        {
+            _running = false;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RunParserSpikeAsync()
+    {
+        if (_parserRunning)
+        {
+            return;
+        }
+
+        _parserRunning = true;
+        _parserReport = "Parsing 4 MB envelope with the P0 syntax tree...";
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var content = DbcSyntheticGenerator.Create();
+            var parseWatch = Stopwatch.StartNew();
+            var tree = DbcSyntaxTree.Parse(content);
+            parseWatch.Stop();
+
+            var statementCount = tree.StatementCount;
+            var commentIndex = tree.FindFirstKind(DbcStatementKind.Comment);
+            if (commentIndex < 0)
+            {
+                throw new InvalidOperationException("The envelope contains no comment statement.");
+            }
+
+            var comment = tree.GetStatement(commentIndex);
+            var quote = comment.RawText.IndexOf('"');
+            var editOffset = comment.Start + Math.Max(0, quote) + 1;
+            var expected = content.Insert(editOffset, "X");
+            var editWatch = Stopwatch.StartNew();
+            var updated = tree.WithChanges(
+                new DbcTextChange(new DbcTextSpan(editOffset, 0), "X"));
+            editWatch.Stop();
+
+            var reused = 0;
+            for (var index = 0; index < statementCount; index++)
+            {
+                if (tree.GetGreenId(index) == updated.GetGreenId(index))
+                {
+                    reused++;
+                }
+            }
+
+            var lossless = string.Equals(updated.GetText(), expected, StringComparison.Ordinal);
+            var managedGreen = GC.GetTotalMemory(false) / 1024d / 1024d;
+
+            var redWatch = Stopwatch.StartNew();
+            var redStatements = updated.Root.Statements.Count;
+            var firstRed = updated.Root.Statements[0];
+            redWatch.Stop();
+            var managedRed = GC.GetTotalMemory(false) / 1024d / 1024d;
+
+            var p1Watch = Stopwatch.StartNew();
+            var p1 = DbcParser.Parse(content);
+            p1Watch.Stop();
+            var managedP1 = GC.GetTotalMemory(false) / 1024d / 1024d;
+
+            var semanticsWatch = Stopwatch.StartNew();
+            var semantics = p1.Semantics;
+            semanticsWatch.Stop();
+            var managedSemantics = GC.GetTotalMemory(false) / 1024d / 1024d;
+            var palette = new DbcCommandPaletteModel();
+            palette.SetDocument(p1.Document, p1.Semantics);
+            var paletteWatch = Stopwatch.StartNew();
+            palette.SetQuery("Sig_");
+            paletteWatch.Stop();
+            var paletteSignalResults = palette.ResultCount;
+            var paletteSignalMatches = palette.TotalMatchCount;
+            var paletteCommentWatch = Stopwatch.StartNew();
+            palette.SetQuery("Generated comment");
+            paletteCommentWatch.Stop();
+            var paletteCommentResults = palette.ResultCount;
+            var propertyFile = new DbcFileEntry(
+                new DbcDocumentId("perf", "envelope.dbc"),
+                content,
+                p1);
+            var property = new DbcPropertyModel();
+            var propertyWatch = Stopwatch.StartNew();
+            property.ShowFile(propertyFile);
+            propertyWatch.Stop();
+            var commentCount = semantics is null
+                ? 0
+                : semantics.FileComments.Count
+                    + semantics.NodeComments.Count
+                    + semantics.MessageComments.Count
+                    + semantics.SignalComments.Count
+                    + semantics.EnvironmentComments.Count;
+            var attributeCount = semantics is null
+                ? 0
+                : semantics.AttributeDefinitions.Count
+                    + semantics.AttributeDefaults.Count
+                    + semantics.AttributeValues.Count;
+
+            _parserReport = string.Join(
+                Environment.NewLine,
+                $"bytes={content.Length.ToString("N0", CultureInfo.InvariantCulture)}",
+                $"statements={statementCount.ToString("N0", CultureInfo.InvariantCulture)}",
+                $"parse={parseWatch.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture)}ms",
+                $"edit-green={editWatch.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture)}ms",
+                $"red-view={redWatch.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture)}ms",
+                $"reused-statements={reused.ToString("N0", CultureInfo.InvariantCulture)}",
+                $"red-statements={redStatements.ToString("N0", CultureInfo.InvariantCulture)}",
+                $"red-first={firstRed.Position.ToString(CultureInfo.InvariantCulture)}",
+                $"lossless={lossless}",
+                $"managed-green={managedGreen.ToString("0.0", CultureInfo.InvariantCulture)}MB",
+                $"managed-red={managedRed.ToString("0.0", CultureInfo.InvariantCulture)}MB",
+                $"p1-parse={p1Watch.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture)}ms",
+                $"p1-messages={p1.Document.Messages.Count.ToString("N0", CultureInfo.InvariantCulture)}",
+                $"p1-signals={p1.Document.Messages.Sum(message => message.Signals.Count).ToString("N0", CultureInfo.InvariantCulture)}",
+                $"p1-diagnostics={p1.Diagnostics.Count.ToString("N0", CultureInfo.InvariantCulture)}",
+                $"managed-p1={managedP1.ToString("0.0", CultureInfo.InvariantCulture)}MB",
+                $"semantics={semanticsWatch.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture)}ms",
+                $"semantic-comments={commentCount.ToString("N0", CultureInfo.InvariantCulture)}",
+                $"semantic-attributes={attributeCount.ToString("N0", CultureInfo.InvariantCulture)}",
+                $"semantic-value-tables={(semantics?.ValueTables.Count ?? 0).ToString("N0", CultureInfo.InvariantCulture)}",
+                $"semantic-common={(semantics?.CommonStatements.Count ?? 0).ToString("N0", CultureInfo.InvariantCulture)}",
+                $"semantic-unresolved={(semantics?.Unresolved.Count ?? 0).ToString("N0", CultureInfo.InvariantCulture)}",
+                $"managed-semantics={managedSemantics.ToString("0.0", CultureInfo.InvariantCulture)}MB",
+                $"palette-query={paletteWatch.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture)}ms",
+                $"palette-results={paletteSignalResults.ToString("N0", CultureInfo.InvariantCulture)}",
+                $"palette-total-matches={paletteSignalMatches.ToString("N0", CultureInfo.InvariantCulture)}",
+                $"palette-comment-query={paletteCommentWatch.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture)}ms",
+                $"palette-comment-results={paletteCommentResults.ToString("N0", CultureInfo.InvariantCulture)}",
+                $"property-file={propertyWatch.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture)}ms",
+                $"property-comments={property.Comments.Count.ToString("N0", CultureInfo.InvariantCulture)}");
+        }
+        catch (Exception ex)
+        {
+            _parserReport = $"Parser spike failed: {ex.Message}";
+        }
+        finally
+        {
+            _parserRunning = false;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_measureRender)
+        {
+            return;
+        }
+
+        _measureRender = false;
+        _renderWatch?.Stop();
+        _report += Environment.NewLine
+            + $"first-render={_renderWatch?.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture)}ms";
+        _renderWatch = null;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void ClearProbe()
+    {
+        _model = null;
+        _workspace?.Dispose();
+        _workspace = null;
+    }
+
+    public void Dispose()
+    {
+        ClearProbe();
+    }
+}

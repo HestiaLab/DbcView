@@ -5,7 +5,30 @@
         </span>
         <span class="dbc-view-title">DbcView</span>
     </div>
-    <div class="dbc-topbar-actions" role="group" aria-label="Layout history">
+    <div class="dbc-topbar-actions" role="group" aria-label="Workspace actions">
+        @if (ShowPersistence)
+        {
+            <button type="button"
+                    class="dbc-icon-button"
+                    data-testid="dbc-persistence"
+                    aria-pressed="@(PersistenceEnabled ? "true" : "false")"
+                    aria-label="Session persistence"
+                    title="@(PersistenceEnabled ? "Session persistence: On" : "Session persistence: Off")"
+                    @onclick="OnPersistence">
+                <DbcIcon Name="database" Size="16" />
+            </button>
+        }
+        @if (CanSearch)
+        {
+            <button type="button"
+                    class="dbc-icon-button"
+                    data-testid="dbc-open-palette"
+                    @onclick="OnSearch"
+                    aria-label="Search messages and signals"
+                    title="Search messages and signals (/)">
+                <DbcIcon Name="search" Size="16" />
+            </button>
+        }
         <button type="button"
                 class="dbc-icon-button"
                 disabled="@(!CanUndo)"
@@ -33,8 +56,23 @@
     public bool CanRedo { get; set; }
 
     [Parameter]
+    public bool CanSearch { get; set; }
+
+    [Parameter]
+    public bool ShowPersistence { get; set; }
+
+    [Parameter]
+    public bool PersistenceEnabled { get; set; }
+
+    [Parameter]
     public EventCallback OnUndo { get; set; }
 
     [Parameter]
     public EventCallback OnRedo { get; set; }
+
+    [Parameter]
+    public EventCallback OnSearch { get; set; }
+
+    [Parameter]
+    public EventCallback OnPersistence { get; set; }
 }

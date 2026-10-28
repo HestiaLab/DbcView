@@ -1,0 +1,344 @@
+@namespace DbcView.Web.Components
+@using DbcView.Application
+@using DbcView.Domain
+@using DbcView.Web.ViewModels
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<dialog class="dbc-edit-dialog"
+        data-testid="dbc-edit-dialog"
+        aria-label="@Draft.Title"
+        @ref="_dialog"
+        @onclose="OnDialogClosed">
+    <div class="dbc-edit-body">
+        <div class="dbc-edit-header">
+            <h3>@Draft.Title</h3>
+            <button type="button"
+                    class="dbc-icon-button"
+                    data-testid="dbc-edit-cancel"
+                    aria-label="Cancel edit"
+                    @onclick="CancelAsync">
+                <DbcIcon Name="close" Size="14" />
+            </button>
+        </div>
+
+        <div class="dbc-edit-content">
+            @if (Draft.DuplicateCount > 1)
+            {
+                <div class="dbc-alert warning" role="status" data-testid="dbc-edit-duplicate">
+                    <DbcIcon Name="warning" Size="14" />
+                    <span>
+                        @Draft.DuplicateCount duplicate statements exist; only the
+                        @(Draft.Kind == DbcEditDraftKind.Comment
+                            ? "selected comment"
+                            : Draft.Kind == DbcEditDraftKind.ValueTable
+                                ? "last VAL_ statement"
+                                : "effective last value")
+                        is changed.
+                    </span>
+                </div>
+            }
+
+            @if (Draft.ConvertsReferencedTable)
+            {
+                <div class="dbc-alert warning" role="status" data-testid="dbc-edit-inline">
+                    <DbcIcon Name="warning" Size="14" />
+                    <span>
+                        This signal references a global value table. Saving will create an inline
+                        copy; the global table is unchanged.
+                    </span>
+                </div>
+            }
+
+            @if (Draft.Kind == DbcEditDraftKind.Comment)
+            {
+                <label class="dbc-edit-field">
+                    <span>Comment</span>
+                    <textarea @ref="_primaryInput"
+                              data-testid="dbc-edit-comment-text"
+                              rows="4"
+                              @bind="Draft.CommentText"
+                              @bind:event="oninput"></textarea>
+                </label>
+            }
+            else if (Draft.Kind == DbcEditDraftKind.Attribute)
+            {
+                <dl class="dbc-property-list dbc-edit-meta">
+                    <dt>Attribute</dt>
+                    <dd>@Draft.AttributeName</dd>
+                    @if (Draft.AttributeType is not null)
+                    {
+                        <dt>Type</dt>
+                        <dd>@Draft.AttributeType</dd>
+                    }
+                    @if (Draft.AttributeRange is not null)
+                    {
+                        <dt>Range</dt>
+                        <dd>@Draft.AttributeRange</dd>
+                    }
+                </dl>
+                <label class="dbc-edit-field">
+                    <span>Value</span>
+                    <input @ref="_primaryInput"
+                           data-testid="dbc-edit-attribute-value"
+                           type="text"
+                           @bind="Draft.AttributeValue"
+                           @bind:event="oninput" />
+                </label>
+            }
+            else
+            {
+                <div class="dbc-edit-field">
+                    <span>Value entries</span>
+                    <div class="dbc-edit-entries" data-testid="dbc-edit-entries">
+                        @for (var index = 0; index < Draft.Entries.Count; index++)
+                        {
+                            var entry = Draft.Entries[index];
+                            var entryIndex = index;
+                            <div class="dbc-edit-entry">
+                                <input type="text"
+                                       aria-label="Value"
+                                       @bind="entry.Value"
+                                       @bind:event="oninput" />
+                                <input type="text"
+                                       aria-label="Description"
+                                       @bind="entry.Description"
+                                       @bind:event="oninput" />
+                                <button type="button"
+                                        class="dbc-icon-button"
+                                        data-testid="dbc-edit-remove-entry"
+                                        aria-label="Remove value entry"
+                                        @onclick="() => RemoveEntry(entryIndex)">
+                                    <DbcIcon Name="close" Size="12" />
+                                </button>
+                            </div>
+                        }
+                    </div>
+                    <button type="button"
+                            class="dbc-action"
+                            data-testid="dbc-edit-add-entry"
+                            @onclick="AddEntry">
+                        Add entry
+                    </button>
+                </div>
+            }
+
+            @if (Draft.OldStatement is not null)
+            {
+                <div class="dbc-edit-preview-block">
+                    <h4>Current statement</h4>
+                    <pre data-testid="dbc-edit-old">@Draft.OldStatement</pre>
+                </div>
+            }
+
+            <div class="dbc-edit-preview-block">
+                <h4>New statement</h4>
+                <p class="dbc-property-muted" data-testid="dbc-edit-line">
+                    @(Draft.ExistingLine is int line
+                        ? $"Statement line {line}"
+                        : "New statement")
+                </p>
+                @if (Draft.PreviewStatement.Length > 0)
+                {
+                    <pre data-testid="dbc-edit-preview">@Draft.PreviewStatement</pre>
+                }
+                else
+                {
+                    <p class="dbc-property-muted" data-testid="dbc-edit-preview-empty">
+                        Complete the form to preview the new statement.
+                    </p>
+                }
+            </div>
+
+            @if (_error is not null)
+            {
+                <div class="dbc-alert error" role="alert" data-testid="dbc-edit-error">
+                    <DbcIcon Name="error" Size="14" />
+                    <div class="dbc-alert-body">
+                        <p>@_error</p>
+                        @if (_diagnostics.Count > 0)
+                        {
+                            <DbcDiagnosticList Diagnostics="_diagnostics" />
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="dbc-edit-actions">
+            @if (Draft.CanDelete)
+            {
+                <button type="button"
+                        class="dbc-action danger"
+                        data-testid="dbc-edit-delete"
+                        @onclick="() => ApplyAsync(delete: true)">
+                    Delete statement
+                </button>
+            }
+            <span class="dbc-edit-spacer"></span>
+            <button type="button"
+                    class="dbc-action"
+                    data-testid="dbc-edit-discard"
+                    @onclick="CancelAsync">
+                Cancel
+            </button>
+            <button type="button"
+                    class="dbc-action primary"
+                    data-testid="dbc-edit-apply"
+                    @onclick="() => ApplyAsync(delete: false)">
+                Apply
+            </button>
+        </div>
+    </div>
+</dialog>
+
+@code {
+    private ElementReference _dialog;
+    private ElementReference _primaryInput;
+    private IJSObjectReference? _module;
+    private bool _shown;
+    private bool _closing;
+    private bool _closedNotified;
+    private string? _error;
+    private IReadOnlyList<DbcDiagnostic> _diagnostics = Array.Empty<DbcDiagnostic>();
+
+    [Parameter, EditorRequired]
+    public DbcEditDraft Draft { get; set; } = null!;
+
+    [Parameter]
+    public Func<DbcStructuredEdit, DbcStructuredEditOutcome>? ApplyEdit { get; set; }
+
+    [Parameter]
+    public EventCallback OnClosed { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!OperatingSystem.IsBrowser() || _shown)
+        {
+            return;
+        }
+
+        _shown = true;
+        try
+        {
+            _module ??= await JS.InvokeAsync<IJSObjectReference>(
+                "import",
+                "./js/dbc-palette.js");
+            await _module.InvokeVoidAsync("showModal", _dialog, _primaryInput);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (JSException)
+        {
+        }
+    }
+
+    private void AddEntry()
+    {
+        Draft.Entries.Add(new DbcValueEntryDraft());
+    }
+
+    private void RemoveEntry(int index)
+    {
+        if (index >= 0 && index < Draft.Entries.Count)
+        {
+            Draft.Entries.RemoveAt(index);
+        }
+    }
+
+    private async Task ApplyAsync(bool delete)
+    {
+        if (_closing)
+        {
+            return;
+        }
+
+        _error = null;
+        _diagnostics = Array.Empty<DbcDiagnostic>();
+        if (ApplyEdit is null)
+        {
+            _error = "The editor is not available.";
+            return;
+        }
+
+        var outcome = ApplyEdit(Draft.Build(delete));
+        if (!outcome.Success)
+        {
+            _error = outcome.Error ?? "The edit could not be applied.";
+            _diagnostics = outcome.Diagnostics;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        _closing = true;
+        await CloseDialogAsync();
+        await NotifyClosedAsync();
+    }
+
+    private async Task CancelAsync()
+    {
+        if (_closing)
+        {
+            return;
+        }
+
+        _closing = true;
+        await CloseDialogAsync();
+        await NotifyClosedAsync();
+    }
+
+    private async Task OnDialogClosed()
+    {
+        _closing = true;
+        await NotifyClosedAsync();
+    }
+
+    private async Task CloseDialogAsync()
+    {
+        if (!OperatingSystem.IsBrowser() || _module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _module.InvokeVoidAsync("closeModal", _dialog);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (JSException)
+        {
+        }
+    }
+
+    private async Task NotifyClosedAsync()
+    {
+        if (_closedNotified)
+        {
+            return;
+        }
+
+        _closedNotified = true;
+        await OnClosed.InvokeAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+            catch (JSException)
+            {
+            }
+        }
+    }
+}

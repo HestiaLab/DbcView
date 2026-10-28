@@ -28,6 +28,42 @@ public sealed class DbcFileWorkspace : IDisposable
 
     public DbcFileEntry? Find(DbcDocumentId id) => _repository.Find(id);
 
+    public DbcParseResult Parse(string content) => _codec.Parse(content);
+
+    public DbcStructuredEditOutcome ApplyStructuredEdit(
+        DbcDocumentId id,
+        DbcStructuredEdit edit)
+    {
+        var existing = _repository.Find(id)
+            ?? throw new DbcFileNotFoundException($"File '{id.Key}' does not exist.");
+        var build = DbcStructuredEditor.Build(existing, edit);
+        if (!build.Success)
+        {
+            return DbcStructuredEditOutcome.Fail(build.Error ?? "The edit could not be applied.");
+        }
+
+        var parse = _codec.Parse(build.Content);
+        if (parse.HasErrors)
+        {
+            return DbcStructuredEditOutcome.Fail(
+                $"The edit would introduce {parse.ErrorCount} DBC error(s).",
+                parse.Diagnostics);
+        }
+
+        var updated = existing with
+        {
+            Content = build.Content,
+            ParseResult = parse,
+        };
+        _repository.Replace(updated);
+        return new DbcStructuredEditOutcome(
+            true,
+            null,
+            build.Diff,
+            parse,
+            Array.Empty<DbcDiagnostic>());
+    }
+
     public void CreateFolder(string name) => _repository.CreateFolder(name);
 
     /// <summary>
@@ -35,7 +71,10 @@ public sealed class DbcFileWorkspace : IDisposable
     /// the entry keeps the raw content and the diagnostics so the UI can show
     /// both instead of pretending the file is a valid empty document.
     /// </summary>
-    public DbcFileEntry Upload(DbcDocumentId id, string content)
+    public DbcFileEntry Upload(
+        DbcDocumentId id,
+        string content,
+        DbcFileEncoding? encoding = null)
     {
         ArgumentNullException.ThrowIfNull(content);
 
@@ -49,7 +88,7 @@ public sealed class DbcFileWorkspace : IDisposable
             throw new DbcFileConflictException($"Folder '{id.Folder}' does not exist.");
         }
 
-        var entry = new DbcFileEntry(id, content, _codec.Parse(content));
+        var entry = new DbcFileEntry(id, content, _codec.Parse(content), encoding);
         _repository.Add(entry);
         return entry;
     }

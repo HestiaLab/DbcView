@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using DbcView.Domain;
+using DbcView.Infrastructure.Syntax;
 
 namespace DbcView.Infrastructure;
 
@@ -28,6 +29,12 @@ public static class DbcParser
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     public static DbcParseResult Parse(string content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        return DbcSyntaxDocumentBuilder.Build(DbcSyntaxTree.Parse(content));
+    }
+
+    internal static DbcParseResult ParseLegacy(string content)
     {
         ArgumentNullException.ThrowIfNull(content);
 
@@ -280,7 +287,7 @@ public static class DbcParser
         return lines;
     }
 
-    private static bool IsVersionLine(string line)
+    internal static bool IsVersionLine(string line)
     {
         return line.StartsWith("VERSION", StringComparison.Ordinal)
             && (line.Length == "VERSION".Length || char.IsWhiteSpace(line["VERSION".Length]));
@@ -301,13 +308,13 @@ public static class DbcParser
             || line.StartsWith("SG_\t", StringComparison.Ordinal);
     }
 
-    private static bool HasQuotedVersion(string line)
+    internal static bool HasQuotedVersion(string line)
     {
         var firstQuote = line.IndexOf('"');
         return firstQuote >= 0 && line.IndexOf('"', firstQuote + 1) >= 0;
     }
 
-    private static string ExtractVersion(string line)
+    internal static string ExtractVersion(string line)
     {
         var firstQuote = line.IndexOf('"');
         if (firstQuote < 0)
@@ -324,7 +331,7 @@ public static class DbcParser
         return line[(firstQuote + 1)..secondQuote];
     }
 
-    private static bool IsNodesLine(string line)
+    internal static bool IsNodesLine(string line)
     {
         if (!line.StartsWith("BU_", StringComparison.Ordinal))
         {
@@ -335,7 +342,7 @@ public static class DbcParser
         return rest.StartsWith(":", StringComparison.Ordinal);
     }
 
-    private static string[] ParseNodes(string line)
+    internal static string[] ParseNodes(string line)
     {
         var colon = line.IndexOf(':');
         var rest = colon < 0 ? string.Empty : line[(colon + 1)..].Trim();
@@ -344,7 +351,7 @@ public static class DbcParser
             : rest.Split(' ', StringSplitOptions.RemoveEmptyEntries);
     }
 
-    private static bool TryParseMessageHeader(
+    internal static bool TryParseMessageHeader(
         string line,
         int lineNumber,
         out MessageHeader header,
@@ -392,7 +399,7 @@ public static class DbcParser
         return true;
     }
 
-    private static bool TryParseSignal(
+    internal static bool TryParseSignal(
         string line,
         byte messageLength,
         int lineNumber,
@@ -590,7 +597,7 @@ public static class DbcParser
         return true;
     }
 
-    private static bool IsBitRangeValid(
+    internal static bool IsBitRangeValid(
         int startBit,
         int length,
         bool isBigEndian,
@@ -655,7 +662,7 @@ public static class DbcParser
         return true;
     }
 
-    private static bool IsClearlyInvalidBitRange(
+    internal static bool IsClearlyInvalidBitRange(
         int startBit,
         int length,
         bool isBigEndian,
@@ -712,7 +719,7 @@ public static class DbcParser
         return value.ToString("R", CultureInfo.InvariantCulture);
     }
 
-    private readonly record struct MessageHeader(
+    internal readonly record struct MessageHeader(
         uint Id,
         string Name,
         byte Length,

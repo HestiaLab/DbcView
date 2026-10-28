@@ -1,4 +1,5 @@
 #nullable enable
+using DbcView.Application;
 using DbcView.Domain;
 using DbcView.Web.ViewModels;
 using Xunit;
@@ -91,6 +92,14 @@ public sealed class DbcEditorModelTests
 {
     private const string ValidDbc =
         "VERSION \"\"\nBU_: XXX\n\nBO_ 100 EmptyMsg: 1 XXX\n";
+
+    private const string MultiMessageDbc =
+        "VERSION \"\"\nBU_: XXX\n\n" +
+        "BO_ 100 First: 2 XXX\n" +
+        " SG_ A : 0|8@0+ (1,0) [0|255] \"\" XXX\n" +
+        " SG_ B : 8|8@0+ (1,0) [0|255] \"\" XXX\n\n" +
+        "BO_ 200 Second: 1 XXX\n" +
+        " SG_ C : 0|8@0+ (1,0) [0|255] \"\" XXX\n";
 
     [Fact]
     public void Open_sets_file_state_and_raises_StateChanged()
@@ -199,6 +208,117 @@ public sealed class DbcEditorModelTests
     }
 
     [Fact]
+    public void Open_defaults_to_collapsed_rows()
+    {
+        using var workspace = TestWorkspace.Create();
+        var entry = workspace.AddFile("can-a", "a.dbc", MultiMessageDbc);
+        var model = new DbcEditorModel(workspace);
+
+        model.Open(entry);
+
+        Assert.Equal(2, model.MessageCount);
+        Assert.Equal(3, model.SignalCount);
+        Assert.Equal(2, model.RowCount);
+        Assert.All(model.EnumerateRows(), row => Assert.True(row.IsMessage));
+        Assert.All(model.EnumerateRows(), row => Assert.False(row.IsExpanded));
+        Assert.False(model.HasExpandedMessages);
+        Assert.False(model.AllMessagesExpanded);
+    }
+
+    [Fact]
+    public void ToggleExpanded_adds_and_removes_signal_rows()
+    {
+        using var workspace = TestWorkspace.Create();
+        var entry = workspace.AddFile("can-a", "a.dbc", MultiMessageDbc);
+        var model = new DbcEditorModel(workspace);
+        model.Open(entry);
+        var first = model.Document!.Messages[0];
+
+        model.ToggleExpanded(first);
+
+        Assert.True(model.IsExpanded(first));
+        Assert.Equal(4, model.RowCount);
+        Assert.Equal(DbcTableRowKind.Message, model.GetRow(0).Kind);
+        Assert.Equal(DbcTableRowKind.Signal, model.GetRow(1).Kind);
+        Assert.Equal(DbcTableRowKind.Signal, model.GetRow(2).Kind);
+        Assert.Equal(DbcTableRowKind.Message, model.GetRow(3).Kind);
+        Assert.Equal("A", model.GetRow(1).Signal!.Name);
+        Assert.Equal("B", model.GetRow(2).Signal!.Name);
+        Assert.Equal(new[] { 0, 1, 2, 3 }, model.EnumerateRows().Select(row => row.Index));
+
+        model.ToggleExpanded(first);
+
+        Assert.False(model.IsExpanded(first));
+        Assert.Equal(2, model.RowCount);
+    }
+
+    [Fact]
+    public void ExpandAll_and_CollapseAll_cover_every_message()
+    {
+        using var workspace = TestWorkspace.Create();
+        var entry = workspace.AddFile("can-a", "a.dbc", MultiMessageDbc);
+        var model = new DbcEditorModel(workspace);
+        model.Open(entry);
+
+        model.ExpandAll();
+
+        Assert.True(model.AllMessagesExpanded);
+        Assert.Equal(5, model.RowCount);
+        Assert.Equal(3, model.EnumerateRows().Count(row => row.Kind == DbcTableRowKind.Signal));
+
+        model.CollapseAll();
+
+        Assert.False(model.HasExpandedMessages);
+        Assert.Equal(2, model.RowCount);
+    }
+
+    [Fact]
+    public void Open_resets_expansion_state()
+    {
+        using var workspace = TestWorkspace.Create();
+        var entry = workspace.AddFile("can-a", "a.dbc", MultiMessageDbc);
+        var model = new DbcEditorModel(workspace);
+        model.Open(entry);
+        model.ExpandAll();
+
+        model.Open(entry);
+
+        Assert.Equal(2, model.RowCount);
+        Assert.False(model.HasExpandedMessages);
+    }
+
+    [Fact]
+    public void Save_preserves_expansion_for_messages_that_still_exist()
+    {
+        using var workspace = TestWorkspace.Create();
+        var entry = workspace.AddFile("can-a", "a.dbc", MultiMessageDbc);
+        var model = new DbcEditorModel(workspace);
+        model.Open(entry);
+        model.ToggleExpanded(model.Document!.Messages[0]);
+
+        model.EditedContent = MultiMessageDbc + "\nBO_ 300 Third: 1 XXX\n";
+        var outcome = model.Save();
+
+        Assert.True(outcome.Saved);
+        Assert.True(model.IsExpanded(model.Document!.Messages[0]));
+        Assert.False(model.IsExpanded(model.Document!.Messages[1]));
+        Assert.Equal(5, model.RowCount);
+    }
+
+    [Fact]
+    public void Invalid_document_has_no_table_rows()
+    {
+        using var workspace = TestWorkspace.Create();
+        var entry = workspace.AddFile("can-a", "bad.dbc", "not a dbc");
+        var model = new DbcEditorModel(workspace);
+
+        model.Open(entry);
+
+        Assert.True(model.ParseResult!.HasErrors);
+        Assert.Equal(0, model.RowCount);
+    }
+
+    [Fact]
     public void Two_editors_with_same_file_name_in_different_folders_save_independently()
     {
         using var workspace = TestWorkspace.Create();
@@ -216,6 +336,93 @@ public sealed class DbcEditorModelTests
         Assert.True(outcome.Saved);
         Assert.Equal("B", workspace.Find(entryB.Id)!.Document.Version);
         Assert.Equal("A2", workspace.Find(entryA.Id)!.Document.Version);
+    }
+}
+
+public sealed class DbcStructuredSessionTests
+{
+    private const string Content =
+        "VERSION \"\"\nBU_: XXX\n\nBO_ 100 EmptyMsg: 1 XXX\n";
+
+    [Fact]
+    public void Session_tracks_dirty_text_and_reverts_to_the_open_baseline()
+    {
+        using var workspace = TestWorkspace.Create();
+        var entry = workspace.AddFile("can-a", "session.dbc", Content);
+        var model = new DbcEditorModel(workspace);
+        model.Open(entry);
+
+        Assert.False(model.IsTextDirty);
+        Assert.False(model.HasSessionEdits);
+
+        model.EditedContent = "unsaved";
+        Assert.True(model.IsTextDirty);
+        Assert.True(model.HasSessionEdits);
+
+        Assert.True(model.RevertAllEdits());
+
+        Assert.False(model.IsTextDirty);
+        Assert.False(model.HasSessionEdits);
+        Assert.Equal(Content, model.EditedContent);
+        Assert.Equal(Content, workspace.Find(entry.Id)?.Content);
+    }
+
+    [Fact]
+    public void Reload_keeps_the_session_baseline_and_tracks_applied_edits()
+    {
+        using var workspace = TestWorkspace.Create();
+        var entry = workspace.AddFile("can-a", "reload.dbc", Content);
+        var model = new DbcEditorModel(workspace);
+        model.Open(entry);
+        var outcome = workspace.ApplyStructuredEdit(
+            entry.Id,
+            new DbcStructuredEdit(
+                DbcStructuredEditKind.Comment,
+                DbcSemanticScope.File,
+                CommentText: "applied"));
+        Assert.True(outcome.Success, outcome.Error);
+
+        model.Reload(workspace.Find(entry.Id)!);
+
+        Assert.False(model.IsTextDirty);
+        Assert.True(model.HasSessionEdits);
+        Assert.Contains("CM_ \"applied\";", model.EditedContent, StringComparison.Ordinal);
+        Assert.True(model.RevertAllEdits());
+        Assert.Equal(Content, model.EditedContent);
+    }
+
+    [Fact]
+    public void Download_metadata_uses_reviewed_name_and_encoding_notice()
+    {
+        using var workspace = TestWorkspace.Create();
+        var entry = workspace.AddFile(
+            "can-a",
+            "legacy.dbc",
+            Content,
+            new DbcFileEncoding("Windows-1252", true, 2));
+        var model = new DbcEditorModel(workspace);
+        model.Open(entry);
+
+        Assert.Equal("legacy.dbc.reviewed.dbc", model.DownloadFileName);
+        Assert.Contains(
+            "Windows-1252 (fallback)",
+            model.DownloadEncodingNotice,
+            StringComparison.Ordinal);
+        Assert.Contains("UTF-8", model.DownloadEncodingNotice, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Download_validation_reparses_the_current_text_buffer()
+    {
+        using var workspace = TestWorkspace.Create();
+        var entry = workspace.AddFile("can-a", "download.dbc", Content);
+        var model = new DbcEditorModel(workspace);
+        model.Open(entry);
+        model.EditedContent = "not a dbc";
+
+        var parse = model.ValidateDownload();
+
+        Assert.True(parse.HasErrors);
     }
 }
 

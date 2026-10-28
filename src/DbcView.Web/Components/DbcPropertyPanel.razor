@@ -1,6 +1,13 @@
 @namespace DbcView.Web.Components
+@using DbcView.Application
+@using DbcView.Domain
 @using DbcView.Web.ViewModels
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@using Microsoft.JSInterop
 @implements IDisposable
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject DbcEditorSessionRegistry Sessions
 
 <div class="dbc-property" data-testid="dbc-property" aria-label="DBC properties">
     @if (Model.TargetType is null)
@@ -17,63 +24,508 @@
             <span class="dbc-property-type">@Model.TargetType</span>
             <span class="dbc-property-name">@Model.TargetName</span>
         </div>
-        <dl class="dbc-property-list">
-            @if (Model.Id is not null)
+
+        @if (!Model.SemanticsAvailable)
+        {
+            <div class="dbc-alert warning"
+                 role="status"
+                 data-testid="dbc-semantics-unavailable">
+                <DbcIcon Name="warning" Size="14" />
+                <span>@Model.SemanticsUnavailableReason</span>
+            </div>
+        }
+        else if (!CanEditSemantics)
+        {
+            <div class="dbc-alert warning"
+                 role="status"
+                 data-testid="dbc-edit-disabled">
+                <DbcIcon Name="warning" Size="14" />
+                <span>@EditBlockedReason</span>
+            </div>
+        }
+
+        <section class="dbc-property-section" data-testid="dbc-property-general">
+            <h3 class="dbc-property-section-title">General</h3>
+            <dl class="dbc-property-list">
+                @if (Model.TargetType == "File")
+                {
+                    <dt>File</dt>
+                    <dd>@Model.FileKey</dd>
+                    <dt>Encoding</dt>
+                    <dd data-testid="dbc-file-encoding">@(Model.Encoding ?? "Not recorded")</dd>
+                    @if (Model.UndefinedByteCount > 0)
+                    {
+                        <dt>Undefined bytes</dt>
+                        <dd data-testid="dbc-file-undefined-bytes">@Model.UndefinedByteCount</dd>
+                    }
+                    <dt>Messages</dt>
+                    <dd>@Model.FileMessageCount</dd>
+                    <dt>Signals</dt>
+                    <dd>@Model.FileSignalCount</dd>
+                    <dt>Diagnostics</dt>
+                    <dd>@Model.ErrorCount error(s), @Model.WarningCount warning(s)</dd>
+                }
+                else
+                {
+                    @if (Model.Id is not null)
+                    {
+                        <dt>Id</dt>
+                        <dd>@Model.Id <span class="dbc-property-muted">(@Model.IdHex)</span></dd>
+                    }
+                    @if (Model.Name is not null)
+                    {
+                        <dt>Name</dt>
+                        <dd>@Model.Name</dd>
+                    }
+                    @if (Model.ParentMessage is not null)
+                    {
+                        <dt>Message</dt>
+                        <dd>@Model.ParentMessage</dd>
+                    }
+                    @if (Model.Length is not null)
+                    {
+                        <dt>Length</dt>
+                        <dd>@Model.Length</dd>
+                    }
+                    @if (Model.Transmitter is not null)
+                    {
+                        <dt>Transmitter</dt>
+                        <dd>@Model.Transmitter</dd>
+                    }
+                    @if (Model.StartBit is not null)
+                    {
+                        <dt>Start bit</dt>
+                        <dd>@Model.StartBit</dd>
+                    }
+                    @if (Model.ByteOrder is not null)
+                    {
+                        <dt>Byte order</dt>
+                        <dd>@Model.ByteOrder</dd>
+                    }
+                    @if (Model.Signed is not null)
+                    {
+                        <dt>Signed</dt>
+                        <dd>@Model.Signed</dd>
+                    }
+                    @if (Model.Factor is not null)
+                    {
+                        <dt>Factor</dt>
+                        <dd>@Model.Factor</dd>
+                    }
+                    @if (Model.Offset is not null)
+                    {
+                        <dt>Offset</dt>
+                        <dd>@Model.Offset</dd>
+                    }
+                    @if (Model.Min is not null)
+                    {
+                        <dt>Min</dt>
+                        <dd>@Model.Min</dd>
+                    }
+                    @if (Model.Max is not null)
+                    {
+                        <dt>Max</dt>
+                        <dd>@Model.Max</dd>
+                    }
+                    @if (Model.Unit is not null)
+                    {
+                        <dt>Unit</dt>
+                        <dd>@Model.Unit</dd>
+                    }
+                    @if (Model.Receiver is not null)
+                    {
+                        <dt>Receiver</dt>
+                        <dd>@Model.Receiver</dd>
+                    }
+                    @if (Model.Multiplexer is not null)
+                    {
+                        <dt>Multiplexer</dt>
+                        <dd>@Model.Multiplexer</dd>
+                    }
+                }
+            </dl>
+        </section>
+
+        @if (Model.SemanticsAvailable)
+        {
+            <section class="dbc-property-section" data-testid="dbc-property-comments">
+                <div class="dbc-property-section-head">
+                    <h3 class="dbc-property-section-title">Comments</h3>
+                    <button type="button"
+                            class="dbc-action"
+                            data-testid="dbc-add-comment"
+                            disabled="@(!CanEditSemantics)"
+                            @onclick="OpenAddComment">Add comment</button>
+                </div>
+                @if (Model.Comments.Count > 0)
+                {
+                    <ul class="dbc-semantic-list">
+                        @foreach (var comment in Model.Comments.Take(20))
+                        {
+                            <li class="dbc-comment @(comment.IsHighlighted ? "is-highlighted" : "")"
+                                data-testid="dbc-comment"
+                                data-highlighted="@(comment.IsHighlighted ? "true" : "false")">
+                                <p class="dbc-comment-text">@comment.Text</p>
+                                <div class="dbc-comment-actions">
+                                    @RenderLineButton(comment.LineNumber)
+                                    <button type="button"
+                                            class="dbc-source-line"
+                                            data-testid="dbc-edit-comment"
+                                            disabled="@(!CanEditSemantics)"
+                                            @onclick="() => OpenCommentEdit(comment)">Edit</button>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                    @if (Model.Comments.Count > 20)
+                    {
+                        <p class="dbc-property-muted">and @(Model.Comments.Count - 20) more comments</p>
+                    }
+                }
+                else
+                {
+                    <p class="dbc-property-muted">No comments for this target.</p>
+                }
+            </section>
+
+            @if (Model.Attributes.Count > 0)
             {
-                <dt>Id</dt>
-                <dd>@Model.Id</dd>
+                <section class="dbc-property-section" data-testid="dbc-property-attributes">
+                    <h3 class="dbc-property-section-title">Attributes</h3>
+                    @if (Model.Attributes.Any(candidate => candidate.IsUndefined))
+                    {
+                        <div class="dbc-alert warning" role="status" data-testid="dbc-undefined-attribute">
+                            <DbcIcon Name="warning" Size="14" />
+                            <span>An explicit attribute has no definition. It is shown by name and value.</span>
+                        </div>
+                    }
+                    <div class="dbc-attributes">
+                        @foreach (var attributeView in Model.Attributes)
+                        {
+                            <div class="dbc-attribute"
+                                 data-testid="dbc-attribute"
+                                 data-source="@SourceKey(attributeView.Source)"
+                                 data-duplicate="@(attributeView.IsDuplicate ? "true" : "false")"
+                                 data-undefined="@(attributeView.IsUndefined ? "true" : "false")">
+                                <div class="dbc-attribute-head">
+                                    <span class="dbc-attribute-name">@attributeView.Name</span>
+                                    <span class="dbc-source-badge is-@SourceKey(attributeView.Source)">
+                                        @SourceLabel(attributeView.Source)
+                                    </span>
+                                    @if (attributeView.IsDuplicate)
+                                    {
+                                        <span class="dbc-badge">duplicate</span>
+                                    }
+                                    @if (attributeView.IsDuplicate && attributeView.IsEffective)
+                                    {
+                                        <span class="dbc-badge">effective</span>
+                                    }
+                                    @RenderLineButton(attributeView.LineNumber)
+                                    @if (Model.TargetScope != DbcSemanticScope.File
+                                         && !attributeView.IsUndefined)
+                                    {
+                                        @if (attributeView.Source == DbcAttributeSource.Explicit
+                                             && attributeView.IsEffective)
+                                        {
+                                            <button type="button"
+                                                    class="dbc-source-line"
+                                                    data-testid="dbc-edit-attribute"
+                                                    disabled="@(!CanEditSemantics)"
+                                                    @onclick="() => OpenAttributeEdit(attributeView, true)">
+                                                Edit
+                                            </button>
+                                        }
+                                        else if (attributeView.Source is DbcAttributeSource.Default
+                                                 or DbcAttributeSource.Definition
+                                                 && attributeView.ValueType is not null)
+                                        {
+                                            <button type="button"
+                                                    class="dbc-source-line"
+                                                    data-testid="dbc-set-attribute"
+                                                    disabled="@(!CanEditSemantics)"
+                                                    @onclick="() => OpenAttributeEdit(attributeView, false)">
+                                                Set value
+                                            </button>
+                                        }
+                                    }
+                                </div>
+                                <div class="dbc-attribute-value">
+                                    <code>@(attributeView.Value ?? "(not set)")</code>
+                                    @if (attributeView.ValueType is not null)
+                                    {
+                                        <span class="dbc-property-muted">@attributeView.ValueType</span>
+                                    }
+                                </div>
+                                @if (attributeView.DefaultValue is not null
+                                     && !string.Equals(
+                                         attributeView.DefaultValue,
+                                         attributeView.Value,
+                                         StringComparison.Ordinal))
+                                {
+                                    <div class="dbc-attribute-meta">
+                                        default: <code>@attributeView.DefaultValue</code>
+                                    </div>
+                                }
+                                @if (attributeView.Range is not null)
+                                {
+                                    <div class="dbc-attribute-meta">range: @attributeView.Range</div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </section>
             }
-            @if (Model.Name is not null)
+
+            @if (Model.TargetScope == DbcSemanticScope.Signal)
             {
-                <dt>Name</dt>
-                <dd>@Model.Name</dd>
+                <section class="dbc-property-section" data-testid="dbc-property-value-table">
+                    <div class="dbc-property-section-head">
+                        <h3 class="dbc-property-section-title">Value table</h3>
+                        <button type="button"
+                                class="dbc-action"
+                                data-testid="dbc-edit-value-table"
+                                disabled="@(!CanEditSemantics)"
+                                @onclick="OpenValueTableEdit">
+                            @(Model.ValueTable is null ? "Add value table" : "Edit")
+                        </button>
+                    </div>
+                    @if (Model.ValueTable is { } valueTable)
+                    {
+                        <div class="dbc-value-table-head">
+                            <span class="dbc-attribute-name">@valueTable.Name</span>
+                            <span class="dbc-property-muted">@valueTable.Entries.Count entries</span>
+                            @RenderLineButton(valueTable.LineNumber)
+                        </div>
+                        @if (valueTable.IsMissingTable)
+                        {
+                            <div class="dbc-alert warning" role="status" data-testid="dbc-missing-value-table">
+                                <DbcIcon Name="warning" Size="14" />
+                                <span>The referenced value table was not defined.</span>
+                            </div>
+                        }
+                        <dl class="dbc-value-preview">
+                            @foreach (var entry in valueTable.Entries.Take(10))
+                            {
+                                <dt>@entry.Value</dt>
+                                <dd>@entry.Description</dd>
+                            }
+                        </dl>
+                        @if (valueTable.Entries.Count > 10)
+                        {
+                            <button type="button"
+                                    class="dbc-action"
+                                    data-testid="dbc-view-value-table"
+                                    @onclick="OpenValueTableDialog">
+                                View all @valueTable.Entries.Count
+                            </button>
+                        }
+                    }
+                    else
+                    {
+                        <p class="dbc-property-muted">No value table for this signal.</p>
+                    }
+                </section>
             }
-            @if (Model.Length is not null)
+
+            @if (Model.Multiplexer is not null || Model.HasExtendedMultiplexing)
             {
-                <dt>Length</dt>
-                <dd>@Model.Length</dd>
+                <section class="dbc-property-section" data-testid="dbc-property-multiplexing">
+                    <h3 class="dbc-property-section-title">Multiplexing</h3>
+                    @if (Model.Multiplexer is not null)
+                    {
+                        <dl class="dbc-property-list">
+                            <dt>Marker</dt>
+                            <dd>@Model.Multiplexer</dd>
+                        </dl>
+                    }
+                    @if (Model.HasExtendedMultiplexing)
+                    {
+                        <div class="dbc-alert warning" role="status" data-testid="dbc-extended-multiplexing">
+                            <DbcIcon Name="warning" Size="14" />
+                            <span>Extended multiplexing is declared but not interpreted.</span>
+                        </div>
+                    }
+                </section>
             }
-            @if (Model.Transmitter is not null)
+
+            @if (Model.NotDisplayed.Count > 0)
             {
-                <dt>Transmitter</dt>
-                <dd>@Model.Transmitter</dd>
+                <section class="dbc-property-section" data-testid="dbc-property-not-displayed">
+                    <h3 class="dbc-property-section-title">Not displayed</h3>
+                    @foreach (var group in Model.NotDisplayed)
+                    {
+                        <div class="dbc-statement-group" data-testid="dbc-statement-group">
+                            <h4 class="dbc-statement-group-title">
+                                @group.Keyword <span class="dbc-property-muted">@group.Items.Count</span>
+                            </h4>
+                            @foreach (var statement in group.Items.Take(5))
+                            {
+                                <div class="dbc-statement" data-testid="dbc-statement">
+                                    <code class="dbc-statement-preview">@statement.Preview</code>
+                                    @RenderLineButton(statement.LineNumber)
+                                </div>
+                            }
+                            @if (group.Items.Count > 5)
+                            {
+                                <p class="dbc-property-muted">and @(group.Items.Count - 5) more</p>
+                            }
+                        </div>
+                    }
+                </section>
             }
-            @if (Model.StartBit is not null)
+
+            @if (Model.NotInterpreted.Count > 0)
             {
-                <dt>Start bit</dt>
-                <dd>@Model.StartBit</dd>
+                <section class="dbc-property-section" data-testid="dbc-property-not-interpreted">
+                    <h3 class="dbc-property-section-title">Not interpreted</h3>
+                    @foreach (var group in Model.NotInterpreted)
+                    {
+                        <div class="dbc-statement-group" data-testid="dbc-statement-group">
+                            <h4 class="dbc-statement-group-title">
+                                @group.Keyword <span class="dbc-property-muted">@group.Items.Count</span>
+                            </h4>
+                            @foreach (var statement in group.Items.Take(5))
+                            {
+                                <div class="dbc-statement" data-testid="dbc-statement">
+                                    @if (statement.Code is not null)
+                                    {
+                                        <span class="dbc-badge">@statement.Code</span>
+                                    }
+                                    <code class="dbc-statement-preview">@statement.Preview</code>
+                                    @RenderLineButton(statement.LineNumber)
+                                </div>
+                            }
+                            @if (group.Items.Count > 5)
+                            {
+                                <p class="dbc-property-muted">and @(group.Items.Count - 5) more</p>
+                            }
+                        </div>
+                    }
+                </section>
             }
-            @if (Model.Factor is not null)
-            {
-                <dt>Factor</dt>
-                <dd>@Model.Factor</dd>
-            }
-            @if (Model.Offset is not null)
-            {
-                <dt>Offset</dt>
-                <dd>@Model.Offset</dd>
-            }
-            @if (Model.Min is not null)
-            {
-                <dt>Min</dt>
-                <dd>@Model.Min</dd>
-            }
-            @if (Model.Max is not null)
-            {
-                <dt>Max</dt>
-                <dd>@Model.Max</dd>
-            }
-        </dl>
+        }
     }
 </div>
 
+@if (_editDraft is not null)
+{
+    <DbcStructuredEditDialog Draft="_editDraft"
+                             ApplyEdit="ApplyEdit"
+                             OnClosed="CloseEdit" />
+}
+
+@if (_valueDialogOpen && _dialogEntries is not null)
+{
+    <dialog class="dbc-value-dialog"
+            data-testid="dbc-value-table-dialog"
+            aria-label="Value table @_dialogName"
+            @ref="_valueDialog"
+            @onclose="OnValueDialogClosed">
+        <div class="dbc-value-dialog-header">
+            <h3>@_dialogName</h3>
+            <button type="button"
+                    class="dbc-icon-button"
+                    data-testid="dbc-close-value-table"
+                    aria-label="Close value table"
+                    @onclick="CloseValueDialogAsync">
+                <DbcIcon Name="close" Size="14" />
+            </button>
+        </div>
+        <div class="dbc-value-dialog-body">
+            @if (OperatingSystem.IsBrowser() && _dialogEntries.Length > 200)
+            {
+                <Virtualize Items="_dialogEntries" Context="entry" ItemSize="28">
+                    <ItemContent>
+                        <div class="dbc-value-row">
+                            <code>@entry.Value</code>
+                            <span>@entry.Description</span>
+                        </div>
+                    </ItemContent>
+                </Virtualize>
+            }
+            else
+            {
+                @foreach (var entry in _dialogEntries)
+                {
+                    <div class="dbc-value-row">
+                        <code>@entry.Value</code>
+                        <span>@entry.Description</span>
+                    </div>
+                }
+            }
+        </div>
+    </dialog>
+}
+
 @code {
+    private ElementReference _valueDialog;
+    private IJSObjectReference? _jsModule;
+    private bool _valueDialogOpen;
+    private bool _valueDialogShown;
+    private string _dialogName = string.Empty;
+    private DbcValueDescription[]? _dialogEntries;
+    private DbcEditDraft? _editDraft;
+
     [Parameter, EditorRequired]
     public DbcPropertyModel Model { get; set; } = null!;
+
+    [Parameter]
+    public EventCallback<int> OnLocateSource { get; set; }
+
+    [Parameter]
+    public Func<DbcStructuredEdit, DbcStructuredEditOutcome>? ApplyEdit { get; set; }
+
+    private bool CanEditSemantics =>
+        Model.SemanticsAvailable
+        && Model.DocumentId is { } documentId
+        && Sessions.Find(documentId) is { IsTextDirty: false };
+
+    private string EditBlockedReason
+    {
+        get
+        {
+            if (Model.DocumentId is not { } documentId
+                || Sessions.Find(documentId) is null)
+            {
+                return "Open this document in the editor before editing semantics.";
+            }
+
+            return "Save the text buffer before editing semantics.";
+        }
+    }
 
     protected override void OnInitialized()
     {
         Model.StateChanged += OnModelChanged;
+        Sessions.Changed += OnSessionsChanged;
+    }
+
+    private void OnSessionsChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_valueDialogOpen || _valueDialogShown || !OperatingSystem.IsBrowser())
+        {
+            return;
+        }
+
+        _valueDialogShown = true;
+        try
+        {
+            _jsModule ??= await JS.InvokeAsync<IJSObjectReference>(
+                "import",
+                "./js/dbc-palette.js");
+            await _jsModule.InvokeVoidAsync("showModal", _valueDialog, null);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (JSException)
+        {
+        }
     }
 
     private void OnModelChanged()
@@ -81,8 +533,212 @@
         _ = InvokeAsync(StateHasChanged);
     }
 
+    private void OpenAddComment()
+    {
+        if (!CanEditSemantics)
+        {
+            return;
+        }
+
+        _editDraft = DbcEditDraft.ForComment(
+            Model.TargetScope,
+            Model.MessageId,
+            Model.SignalName,
+            lineNumber: null,
+            text: string.Empty,
+            oldStatement: null,
+            canDelete: false,
+            duplicateCount: 0);
+    }
+
+    private void OpenCommentEdit(DbcPropertyComment comment)
+    {
+        if (!CanEditSemantics)
+        {
+            return;
+        }
+
+        _editDraft = DbcEditDraft.ForComment(
+            Model.TargetScope,
+            Model.MessageId,
+            Model.SignalName,
+            comment.LineNumber,
+            comment.Text,
+            Model.GetStatementText(comment.LineNumber),
+            canDelete: true,
+            duplicateCount: Model.Comments.Count);
+    }
+
+    private void OpenAttributeEdit(DbcPropertyAttribute attributeView, bool existing)
+    {
+        if (!CanEditSemantics
+            || Model.TargetScope == DbcSemanticScope.File
+            || attributeView.IsUndefined
+            || attributeView.ValueType is null)
+        {
+            return;
+        }
+
+        var duplicates = Model.Attributes.Count(
+            candidate => string.Equals(candidate.Name, attributeView.Name, StringComparison.Ordinal)
+                && candidate.Source == DbcAttributeSource.Explicit);
+        _editDraft = DbcEditDraft.ForAttribute(
+            Model.TargetScope,
+            Model.MessageId,
+            Model.SignalName,
+            existing ? attributeView.LineNumber : null,
+            attributeView.Name,
+            existing ? attributeView.Value : attributeView.DefaultValue ?? attributeView.Value,
+            attributeView.ValueType,
+            attributeView.Range,
+            existing ? Model.GetStatementText(attributeView.LineNumber) : null,
+            canDelete: existing,
+            duplicateCount: duplicates);
+    }
+
+    private void OpenValueTableEdit()
+    {
+        if (!CanEditSemantics
+            || Model.TargetScope != DbcSemanticScope.Signal
+            || Model.MessageId is not uint messageId
+            || Model.SignalName is not { Length: > 0 } signalName)
+        {
+            return;
+        }
+
+        var table = Model.ValueTable;
+        var entries = table?.Entries ?? Array.Empty<DbcValueDescription>();
+        var lineNumber = table?.LineNumber;
+        _editDraft = DbcEditDraft.ForValueTable(
+            messageId,
+            signalName,
+            lineNumber,
+            entries,
+            lineNumber is int line ? Model.GetStatementText(line) : null,
+            canDelete: table is not null,
+            convertsReferencedTable: table is not null
+                && !string.Equals(table.Name, "Inline values", StringComparison.Ordinal),
+            duplicateCount: table?.DuplicateCount ?? 0);
+    }
+
+    private void CloseEdit()
+    {
+        _editDraft = null;
+    }
+
+    private void OpenValueTableDialog()
+    {
+        if (Model.ValueTable is not { } table)
+        {
+            return;
+        }
+
+        _dialogName = table.Name;
+        _dialogEntries = table.Entries.ToArray();
+        _valueDialogOpen = true;
+        _valueDialogShown = false;
+    }
+
+    private async Task CloseValueDialogAsync()
+    {
+        await CloseValueDialogCoreAsync();
+        OnValueDialogClosed();
+    }
+
+    private async Task CloseValueDialogCoreAsync()
+    {
+        if (_jsModule is not null && OperatingSystem.IsBrowser())
+        {
+            try
+            {
+                await _jsModule.InvokeVoidAsync("closeModal", _valueDialog);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+            catch (JSException)
+            {
+            }
+        }
+    }
+
+    private void OnValueDialogClosed()
+    {
+        if (!_valueDialogOpen)
+        {
+            return;
+        }
+
+        _valueDialogOpen = false;
+        _valueDialogShown = false;
+        _dialogEntries = null;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private RenderFragment RenderLineButton(int lineNumber)
+    {
+        return builder =>
+        {
+            builder.OpenElement(0, "button");
+            builder.AddAttribute(1, "type", "button");
+            builder.AddAttribute(2, "class", "dbc-source-line");
+            builder.AddAttribute(3, "data-testid", "dbc-locate-source");
+            builder.AddAttribute(4, "title", $"Locate source line {lineNumber}");
+            builder.AddAttribute(
+                5,
+                "onclick",
+                EventCallback.Factory.Create(
+                    this,
+                    () => OnLocateSource.InvokeAsync(lineNumber)));
+            builder.AddContent(6, $"Line {lineNumber}");
+            builder.CloseElement();
+        };
+    }
+
+    private static string SourceKey(DbcAttributeSource source)
+    {
+        return source switch
+        {
+            DbcAttributeSource.Explicit => "explicit",
+            DbcAttributeSource.Default => "default",
+            DbcAttributeSource.Undefined => "undefined",
+            _ => "definition",
+        };
+    }
+
+    private static string SourceLabel(DbcAttributeSource source)
+    {
+        return source switch
+        {
+            DbcAttributeSource.Explicit => "Explicit",
+            DbcAttributeSource.Default => "Default",
+            DbcAttributeSource.Undefined => "Undefined",
+            _ => "Definition",
+        };
+    }
+
     public void Dispose()
     {
         Model.StateChanged -= OnModelChanged;
+        Sessions.Changed -= OnSessionsChanged;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Model.StateChanged -= OnModelChanged;
+        Sessions.Changed -= OnSessionsChanged;
+        if (_jsModule is not null)
+        {
+            try
+            {
+                await _jsModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+            catch (JSException)
+            {
+            }
+        }
     }
 }

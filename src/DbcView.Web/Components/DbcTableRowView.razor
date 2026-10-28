@@ -1,0 +1,100 @@
+@namespace DbcView.Web.Components
+@using DbcView.Web.ViewModels
+
+<div class="@RowClass"
+     role="row"
+     data-row-index="@Row.Index"
+     data-row-key="@Row.Key"
+     aria-rowindex="@(Row.Index + 1)"
+     aria-selected="@(IsSelected ? "true" : "false")">
+    @if (Row.IsMessage)
+    {
+        <div role="cell" class="dbc-cell dbc-cell-id">@Row.Message.Id</div>
+        <div role="cell" class="dbc-cell dbc-row-name">
+            <span class="dbc-row-name-inner">
+                @if (Row.Message.Signals.Count > 0)
+                {
+                    <button type="button"
+                            class="dbc-row-toggle"
+                            tabindex="-1"
+                            data-testid="dbc-toggle-message"
+                            aria-expanded="@(Row.IsExpanded ? "true" : "false")"
+                            aria-label="@(Row.IsExpanded ? $"Collapse {Row.Message.Name}" : $"Expand {Row.Message.Name}")"
+                            @onclick="OnToggle">
+                        <DbcIcon Name="@(Row.IsExpanded ? "chevron-down" : "chevron-right")" Size="12" />
+                    </button>
+                }
+                else
+                {
+                    <span class="dbc-row-toggle-spacer" aria-hidden="true"></span>
+                }
+                <button type="button"
+                        class="dbc-link dbc-row-focus"
+                        tabindex="@(IsActive ? "0" : "-1")"
+                        data-testid="dbc-message"
+                        data-row-focus="true"
+                        title="@Row.Message.Name"
+                        @onclick="OnSelect"
+                        @onfocus="OnFocus"
+                        @onkeydown="OnKeyDown">
+                    <span class="dbc-row-label">@Row.Message.Name</span>
+                </button>
+            </span>
+        </div>
+        <div role="cell" class="dbc-cell dbc-cell-length">@Row.Message.Length</div>
+        <div role="cell" class="dbc-cell dbc-cell-signals">@Row.Message.Signals.Count</div>
+        <div role="cell" class="dbc-cell dbc-cell-transmitter" title="@Row.Message.Transmitter">@Row.Message.Transmitter</div>
+    }
+    else
+    {
+        <div role="cell" class="dbc-cell dbc-cell-id"></div>
+        <div role="cell" class="dbc-cell dbc-row-name">
+            <span class="dbc-row-name-inner">
+                <span class="dbc-row-toggle-spacer" aria-hidden="true"></span>
+                <button type="button"
+                        class="dbc-link dbc-signal-link dbc-row-focus"
+                        tabindex="@(IsActive ? "0" : "-1")"
+                        data-testid="dbc-signal"
+                        data-row-focus="true"
+                        title="@Row.Signal!.Name"
+                        @onclick="OnSelect"
+                        @onfocus="OnFocus"
+                        @onkeydown="OnKeyDown">
+                    <DbcIcon Name="signal" Size="12" />
+                    <span class="dbc-row-label">@Row.Signal!.Name</span>
+                </button>
+            </span>
+        </div>
+        <div role="cell" class="dbc-cell dbc-cell-length">@Row.Signal!.Length</div>
+        <div role="cell" class="dbc-cell dbc-cell-signals"></div>
+        <div role="cell" class="dbc-cell dbc-cell-transmitter" title="@Row.Signal!.Receiver">@Row.Signal!.Receiver</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public DbcTableRow Row { get; set; } = null!;
+
+    [Parameter]
+    public bool IsActive { get; set; }
+
+    [Parameter]
+    public bool IsSelected { get; set; }
+
+    [Parameter]
+    public EventCallback<MouseEventArgs> OnSelect { get; set; }
+
+    [Parameter]
+    public EventCallback OnToggle { get; set; }
+
+    [Parameter]
+    public EventCallback OnFocus { get; set; }
+
+    [Parameter]
+    public EventCallback<KeyboardEventArgs> OnKeyDown { get; set; }
+
+    private string RowClass =>
+        "dbc-table-row "
+        + (Row.IsMessage ? "dbc-message-row" : "dbc-signal-row")
+        + (IsSelected ? " is-selected" : string.Empty);
+}

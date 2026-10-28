@@ -1,13 +1,20 @@
+using DbcView.Domain;
 using Microsoft.AspNetCore.Components.Forms;
 
 namespace DbcView.Web.Services;
 
 /// <summary>Outcome of reading an uploaded browser file into text.</summary>
-public sealed record DbcFileReadResult(bool Success, string Content, string? Error)
+public sealed record DbcFileReadResult(
+    bool Success,
+    string Content,
+    DbcFileEncoding? Encoding,
+    string? Error)
 {
-    public static DbcFileReadResult Ok(string content) => new(true, content, null);
+    public static DbcFileReadResult Ok(string content, DbcFileEncoding encoding) =>
+        new(true, content, encoding, null);
 
-    public static DbcFileReadResult Fail(string error) => new(false, string.Empty, error);
+    public static DbcFileReadResult Fail(string error) =>
+        new(false, string.Empty, null, error);
 }
 
 /// <summary>
@@ -33,9 +40,16 @@ public static class DbcUploadReader
         try
         {
             await using var stream = file.OpenReadStream(maxAllowedBytes, cancellationToken);
-            using var reader = new StreamReader(stream);
-            var content = await reader.ReadToEndAsync();
-            return DbcFileReadResult.Ok(content);
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer, cancellationToken);
+            if (buffer.Length > maxAllowedBytes)
+            {
+                return DbcFileReadResult.Fail(
+                    $"is too large ({buffer.Length:N0} bytes); the limit is {maxAllowedBytes:N0} bytes.");
+            }
+
+            var decoded = DbcEncodingDetector.Decode(buffer.ToArray());
+            return DbcFileReadResult.Ok(decoded.Content, decoded.Encoding);
         }
         catch (Exception ex)
         {

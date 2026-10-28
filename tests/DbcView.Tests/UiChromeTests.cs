@@ -10,7 +10,7 @@ public sealed class DbcViewTopToolbarTests : BunitContext
 {
     private static readonly string[] RemovedPlaceholders =
     {
-        "File", "Edit", "View", "Navigate", "Code", "Run", "Run target", "Search", "Debug",
+        "File", "Edit", "View", "Navigate", "Code", "Run", "Run target", "Debug",
     };
 
     [Fact]
@@ -40,8 +40,27 @@ public sealed class DbcViewTopToolbarTests : BunitContext
 
         Assert.DoesNotContain("feature/dbc-view", cut.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("Run target", cut.Markup, StringComparison.Ordinal);
-        Assert.DoesNotContain("Search", cut.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("Debug", cut.Markup, StringComparison.Ordinal);
+        Assert.Empty(cut.FindAll("[data-testid='dbc-open-palette']"));
+    }
+
+    [Fact]
+    public void Top_toolbar_exposes_search_only_when_a_document_is_open()
+    {
+        var searchCount = 0;
+        var cut = Render<DbcViewTopToolbar>(parameters => parameters
+            .Add(component => component.CanSearch, true)
+            .Add(
+                component => component.OnSearch,
+                EventCallback.Factory.Create(this, () => searchCount++)));
+
+        var search = cut.Find("[data-testid='dbc-open-palette']");
+        Assert.Equal("Search messages and signals", search.GetAttribute("aria-label"));
+        Assert.Contains("/", search.GetAttribute("title"), StringComparison.Ordinal);
+
+        search.Click();
+
+        Assert.Equal(1, searchCount);
     }
 
     [Fact]
@@ -129,5 +148,25 @@ public sealed class DbcViewStatusBarTests : BunitContext
         Assert.DoesNotContain("1 errors", cut.Markup, StringComparison.Ordinal);
         Assert.Contains("1 warning", cut.Find("[data-testid='dbc-status-warnings']").TextContent, StringComparison.Ordinal);
         Assert.DoesNotContain("1 warnings", cut.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Status_bar_shows_detected_encoding_and_undefined_bytes()
+    {
+        var cut = Render<DbcViewStatusBar>(parameters => parameters
+            .Add(component => component.Encoding, "Windows-1252 (fallback)")
+            .Add(component => component.UndefinedByteCount, 2));
+
+        var encoding = cut.Find("[data-testid='dbc-status-encoding']");
+        Assert.Contains("Windows-1252 (fallback)", encoding.TextContent, StringComparison.Ordinal);
+        Assert.Contains("2 undefined", encoding.TextContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Status_bar_omits_encoding_without_a_detected_document()
+    {
+        var cut = Render<DbcViewStatusBar>();
+
+        Assert.Empty(cut.FindAll("[data-testid='dbc-status-encoding']"));
     }
 }

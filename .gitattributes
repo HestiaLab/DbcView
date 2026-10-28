@@ -9,6 +9,8 @@
 
 # Config / data
 *.dbc text
+samples/semantics-full.dbc text eol=lf
+samples/legacy-windows1252.dbc binary
 *.json text eol=lf
 *.txt text eol=lf
 *.md text eol=lf

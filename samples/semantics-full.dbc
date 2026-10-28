@@ -1,0 +1,46 @@
+VERSION "semantics-full"
+BU_: ECU1 ECU2
+
+BO_ 100 Engine: 8 ECU1
+ SG_ Mode M : 0|8@1+ (1,0) [0|255] "" ECU2
+ SG_ Speed m1 : 8|16@1+ (0.01,0) [0|655.35] "kph" ECU2
+ SG_ Temp : 24|8@1- (1,-40) [-40|215] "C" ECU1
+
+BO_ 200 Status: 4 ECU2
+ SG_ State : 0|8@1+ (1,0) [0|255] "" ECU1
+
+CM_ "File level comment";
+CM_ BO_ 100 "Engine message comment";
+CM_ SG_ 100 Mode "Multiplexer selector";
+CM_ SG_ 100 Speed "Vehicle speed";
+CM_ BU_ ECU1 "Node comment";
+CM_ EV_ Env "Environment comment";
+CM_ SG_ 999 Missing "Dangling comment";
+
+BA_DEF_ "BusType" STRING ;
+BA_DEF_ BO_ "GenMsgCycleTime" INT 0 1000;
+BA_DEF_ SG_ "GenSigStartValue" FLOAT 0 100;
+BA_DEF_ SG_ "SigEnum" ENUM "Off","On";
+BA_DEF_ BU_ "NodeAttr" INT 0 10;
+BA_DEF_DEF_ "BusType" "CAN";
+BA_DEF_DEF_ "GenMsgCycleTime" 100;
+BA_ "BusType" "CAN";
+BA_ "GenMsgCycleTime" BO_ 100 50;
+BA_ "GenMsgCycleTime" BO_ 100 60;
+BA_ "GenSigStartValue" SG_ 100 Speed 1.5;
+BA_ "SigEnum" SG_ 100 Speed 1;
+BA_ "UndefinedAttr" BO_ 200 7;
+BA_ "NodeAttr" BU_ ECU1 3;
+
+VAL_ 100 Mode 0 "Idle" 1 "Run" 2 "Value 2" 3 "Value 3" 4 "Value 4" 5 "Value 5" 6 "Value 6" 7 "Value 7" 8 "Value 8" 9 "Value 9" 10 "Value 10" 11 "Value 11";
+VAL_TABLE_ StateTable 0 "Off" 1 "On";
+VAL_ 200 State VAL_TABLE_ StateTable;
+VAL_ 100 Speed VAL_TABLE_ MissingTable;
+
+BO_TX_BU_ 100 : ECU1,ECU2;
+SIG_GROUP_ 100 SpeedGroup 1 : Mode Speed;
+SIG_VALTYPE_ 100 Speed : 1;
+SG_MUL_VAL_ 100 Speed Mode 1-1;
+
+EV_ Env : 0 [0|100] "" 0 1 DUMMY_NODE_VECTOR0 Vector__XXX;
+VENDOR_UNKNOWN_ 1 2 3;

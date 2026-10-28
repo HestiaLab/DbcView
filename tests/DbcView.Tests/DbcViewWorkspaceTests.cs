@@ -5,6 +5,7 @@ using DbcView.Web.Components;
 using DbcView.Web.Pages;
 using Bunit;
 using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -14,6 +15,20 @@ public sealed class DbcViewWorkspaceTests : BunitContext
 {
     private const string ValidDbc =
         "VERSION \"\"\nBU_: XXX\n\nBO_ 100 EmptyMsg: 1 XXX\n";
+
+    private const string NavigableDbc =
+        "VERSION \"\"\nBU_: XXX\n\n" +
+        "BO_ 100 First: 2 XXX\n" +
+        " SG_ A : 0|8@0+ (1,0) [0|255] \"\" XXX\n" +
+        " SG_ B : 8|8@0+ (1,0) [0|255] \"\" XXX\n\n" +
+        "BO_ 200 Second: 1 XXX\n" +
+        " SG_ C : 0|8@0+ (1,0) [0|255] \"\" XXX\n";
+
+    private const string CommentedDbc =
+        "VERSION \"\"\nBU_: XXX\n\n" +
+        "BO_ 100 First: 1 XXX\n" +
+        " SG_ A : 0|8@0+ (1,0) [0|255] \"\" XXX\n" +
+        "CM_ SG_ 100 A \"needle comment\";\n";
 
     private const string InvalidDbc = "this is not a DBC file";
 
@@ -76,7 +91,7 @@ public sealed class DbcViewWorkspaceTests : BunitContext
 
         cut.WaitForAssertion(
             () => Assert.Single(cut.FindAll("[data-testid='dbc-file']")));
-        cut.Find("[data-testid='dbc-file']").Click();
+        TreeTestHelpers.ClickFile(cut);
 
         cut.WaitForAssertion(
             () => Assert.Equal(
@@ -106,7 +121,7 @@ public sealed class DbcViewWorkspaceTests : BunitContext
         // Flush pending renders before interacting: a stale element whose
         // event handler was replaced by a queued render makes bUnit throw
         // UnknownEventHandlerIdException.
-        await cut.InvokeAsync(() => cut.Find("[data-testid='dbc-file']").Click());
+        await cut.InvokeAsync(() => TreeTestHelpers.ClickFile(cut));
         cut.WaitForAssertion(
             () => Assert.Equal(
                 "DBC/a.dbc",
@@ -118,7 +133,7 @@ public sealed class DbcViewWorkspaceTests : BunitContext
             .UploadFiles(InputFileContent.CreateFromText(ValidDbc, "b.dbc"));
         cut.WaitForAssertion(
             () => Assert.Equal(2, cut.FindAll("[data-testid='dbc-file']").Count));
-        await cut.InvokeAsync(() => cut.Find("[data-file-key='DBC/b.dbc']").Click());
+        await cut.InvokeAsync(() => TreeTestHelpers.ClickFileByKey(cut, "DBC/b.dbc"));
 
         cut.WaitForAssertion(
             () =>
@@ -202,13 +217,13 @@ public sealed class DbcViewWorkspaceTests : BunitContext
             .Single(key => key.StartsWith("folder-", StringComparison.Ordinal));
 
         cut.Render();
-        cut.Find("[data-file-key='DBC/x.dbc']").Click();
+        TreeTestHelpers.ClickFileByKey(cut, "DBC/x.dbc");
         cut.WaitForAssertion(
             () => Assert.Single(
                 cut.FindAll("[data-atlas-group-kind='document'] [role='tab']")));
 
         cut.Render();
-        cut.Find($"[data-file-key='{secondKey}']").Click();
+        TreeTestHelpers.ClickFileByKey(cut, secondKey);
         cut.WaitForAssertion(
             () =>
             {
@@ -285,7 +300,7 @@ public sealed class DbcViewWorkspaceTests : BunitContext
         cut.WaitForAssertion(
             () => Assert.Single(cut.FindAll("[data-testid='dbc-file']")));
         cut.Render();
-        cut.Find("[data-testid='dbc-file']").Click();
+        TreeTestHelpers.ClickFile(cut);
         cut.WaitForAssertion(
             () => Assert.Single(cut.FindAll("[data-atlas-group-kind='document'] [role='tab']")));
 
@@ -304,9 +319,7 @@ public sealed class DbcViewWorkspaceTests : BunitContext
             cut.Find("[data-testid='dbc-view-shell']").GetAttribute("data-compact-active"));
 
         cut.Render();
-        cut.FindAll("[data-testid='dbc-folder']")
-            .Single(button => button.TextContent.Contains("DBC", StringComparison.Ordinal))
-            .Click();
+        TreeTestHelpers.ClickFolder(cut, "DBC");
         Assert.Equal(
             "explorer",
             cut.Find("[data-testid='dbc-view-shell']").GetAttribute("data-compact-active"));
@@ -322,7 +335,8 @@ public sealed class DbcViewWorkspaceTests : BunitContext
             () => Assert.NotEmpty(cut.FindAll("[data-testid='dbc-view-top-toolbar']")));
 
         var toolbar = cut.Find("[data-testid='dbc-view-top-toolbar']");
-        Assert.Equal(2, toolbar.QuerySelectorAll("button").Length);
+        Assert.Equal(3, toolbar.QuerySelectorAll("button").Length);
+        Assert.NotNull(toolbar.QuerySelector("[data-testid='dbc-persistence']"));
         Assert.DoesNotContain("feature/dbc-view", toolbar.TextContent, StringComparison.Ordinal);
 
         foreach (var placeholder in new[]
@@ -358,14 +372,14 @@ public sealed class DbcViewWorkspaceTests : BunitContext
         cut.WaitForAssertion(
             () => Assert.Equal(2, cut.FindAll("[data-testid='dbc-file']").Count));
 
-        await cut.InvokeAsync(() => cut.Find("[data-file-key='DBC/broken.dbc']").Click());
+        await cut.InvokeAsync(() => TreeTestHelpers.ClickFileByKey(cut, "DBC/broken.dbc"));
         cut.WaitForAssertion(
             () => Assert.Contains(
                 "Opened DBC/broken.dbc",
                 cut.Find("[data-testid='dbc-view-status-bar']").TextContent,
                 StringComparison.Ordinal));
 
-        await cut.InvokeAsync(() => cut.Find("[data-file-key='DBC/good.dbc']").Click());
+        await cut.InvokeAsync(() => TreeTestHelpers.ClickFileByKey(cut, "DBC/good.dbc"));
         cut.WaitForAssertion(
             () => Assert.Contains(
                 "Opened DBC/good.dbc",
@@ -410,7 +424,7 @@ public sealed class DbcViewWorkspaceTests : BunitContext
         cut.WaitForAssertion(
             () => Assert.Equal(2, cut.FindAll("[data-testid='dbc-file']").Count));
 
-        cut.Find("[data-file-key='DBC/broken.dbc']").Click();
+        TreeTestHelpers.ClickFileByKey(cut, "DBC/broken.dbc");
         cut.WaitForAssertion(
             () =>
             {
@@ -430,7 +444,7 @@ public sealed class DbcViewWorkspaceTests : BunitContext
 
         var revisionBeforeSecondTab = ReadRevision(cut);
 
-        cut.Find("[data-file-key='DBC/good.dbc']").Click();
+        TreeTestHelpers.ClickFileByKey(cut, "DBC/good.dbc");
         cut.WaitForAssertion(
             () =>
             {
@@ -458,6 +472,168 @@ public sealed class DbcViewWorkspaceTests : BunitContext
                     cut.Find("[data-testid='dbc-status-document']").TextContent,
                     StringComparison.Ordinal);
             });
+    }
+
+    [Fact]
+    public async Task Command_palette_searches_and_navigates_to_a_signal()
+    {
+        var cut = Render<DbcViewWorkspace>();
+        Assert.Empty(cut.FindAll("[data-testid='dbc-open-palette']"));
+
+        cut.FindComponent<InputFile>()
+            .UploadFiles(InputFileContent.CreateFromText(NavigableDbc, "palette.dbc"));
+        cut.WaitForAssertion(
+            () => Assert.Single(cut.FindAll("[data-testid='dbc-file']")));
+        TreeTestHelpers.ClickFile(cut);
+        cut.WaitForAssertion(
+            () => Assert.NotNull(cut.Find("[data-testid='dbc-table']")));
+        cut.WaitForAssertion(
+            () => Assert.NotNull(cut.Find("[data-testid='dbc-open-palette']")));
+
+        cut.Find("[data-testid='dbc-open-palette']").Click();
+        cut.WaitForAssertion(
+            () => Assert.NotNull(cut.Find("[data-testid='dbc-command-palette']")));
+
+        var input = cut.Find("[data-testid='dbc-palette-input']");
+        input.Input("C");
+        cut.WaitForAssertion(
+            () => Assert.Equal(2, cut.FindAll("[data-testid='dbc-palette-result']").Count));
+        var signalOption = cut.FindAll("[data-testid='dbc-palette-result']")
+            .Single(element => element.GetAttribute("data-kind") == "signal");
+
+        await signalOption.ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(
+            () => Assert.Empty(cut.FindAll("[data-testid='dbc-command-palette']")));
+        cut.WaitForAssertion(
+            () => Assert.Single(cut.FindAll("[data-testid='dbc-signal']")));
+        var signal = cut.Find("[data-testid='dbc-signal']");
+        Assert.Contains("C", signal.TextContent, StringComparison.Ordinal);
+        Assert.Equal("0", signal.GetAttribute("tabindex"));
+        Assert.Equal("editor", cut.Find("[data-testid='dbc-view-shell']").GetAttribute("data-compact-active"));
+    }
+
+    [Fact]
+    public async Task Command_palette_selection_returns_to_the_editor_on_the_compact_layout()
+    {
+        var cut = Render<DbcViewWorkspace>();
+
+        cut.FindComponent<InputFile>()
+            .UploadFiles(InputFileContent.CreateFromText(NavigableDbc, "compact.dbc"));
+        cut.WaitForAssertion(
+            () => Assert.Single(cut.FindAll("[data-testid='dbc-file']")));
+        TreeTestHelpers.ClickFile(cut);
+        cut.WaitForAssertion(
+            () => Assert.NotNull(cut.Find("[data-testid='dbc-table']")));
+
+        cut.Find("[data-testid='dbc-compact-properties']").Click();
+        Assert.Equal("properties", cut.Find("[data-testid='dbc-view-shell']").GetAttribute("data-compact-active"));
+
+        cut.Find("[data-testid='dbc-open-palette']").Click();
+        var input = cut.Find("[data-testid='dbc-palette-input']");
+        input.Input("C");
+        cut.WaitForAssertion(
+            () => Assert.Equal(2, cut.FindAll("[data-testid='dbc-palette-result']").Count));
+        await input.KeyDownAsync(new KeyboardEventArgs { Key = "ArrowDown" });
+        await input.KeyDownAsync(new KeyboardEventArgs { Key = "Enter" });
+
+        cut.WaitForAssertion(
+            () => Assert.Equal(
+                "editor",
+                cut.Find("[data-testid='dbc-view-shell']").GetAttribute("data-compact-active")));
+    }
+
+    [Fact]
+    public void Status_bar_and_file_properties_show_the_detected_encoding()
+    {
+        var cut = Render<DbcViewWorkspace>();
+        cut.FindComponent<InputFile>()
+            .UploadFiles(InputFileContent.CreateFromText(ValidDbc, "encoding.dbc"));
+        cut.WaitForAssertion(
+            () => Assert.Single(cut.FindAll("[data-testid='dbc-file']")));
+        TreeTestHelpers.ClickFile(cut);
+
+        cut.WaitForAssertion(
+            () => Assert.Contains(
+                "UTF-8",
+                cut.Find("[data-testid='dbc-status-encoding']").TextContent,
+                StringComparison.Ordinal));
+        Assert.Contains(
+            "UTF-8",
+            cut.Find("[data-testid='dbc-file-encoding']").TextContent,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Palette_comment_hit_highlights_the_property_comment_and_locates_source()
+    {
+        var cut = Render<DbcViewWorkspace>();
+        cut.FindComponent<InputFile>()
+            .UploadFiles(InputFileContent.CreateFromText(CommentedDbc, "comments.dbc"));
+        cut.WaitForAssertion(
+            () => Assert.Single(cut.FindAll("[data-testid='dbc-file']")));
+        TreeTestHelpers.ClickFile(cut);
+        cut.WaitForAssertion(
+            () => Assert.NotNull(cut.Find("[data-testid='dbc-table']")));
+
+        cut.Find("[data-testid='dbc-open-palette']").Click();
+        var input = cut.Find("[data-testid='dbc-palette-input']");
+        input.Input("needle");
+        cut.WaitForAssertion(
+            () => Assert.Single(cut.FindAll("[data-testid='dbc-palette-result']")));
+        await input.KeyDownAsync(new KeyboardEventArgs { Key = "Enter" });
+
+        cut.WaitForAssertion(
+            () => Assert.NotNull(cut.Find("[data-testid='dbc-property-comments']")));
+        Assert.Contains(
+            cut.FindAll("[data-testid='dbc-comment']"),
+            comment => comment.GetAttribute("data-highlighted") == "true");
+
+        cut.FindAll("[data-testid='dbc-locate-source']")[0].Click();
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("textarea")));
+        Assert.Contains(
+            "needle comment",
+            cut.Find("textarea").GetAttribute("value"),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Structured_comment_edit_applies_and_reloads_the_editor()
+    {
+        var cut = Render<DbcViewWorkspace>();
+        cut.FindComponent<InputFile>()
+            .UploadFiles(InputFileContent.CreateFromText(CommentedDbc, "structured.dbc"));
+        cut.WaitForAssertion(
+            () => Assert.Single(cut.FindAll("[data-testid='dbc-file']")));
+        TreeTestHelpers.ClickFile(cut);
+        cut.WaitForAssertion(
+            () => Assert.NotNull(cut.Find("[data-testid='dbc-table']")));
+
+        cut.Find("[data-testid='dbc-toggle-message']").Click();
+        cut.WaitForAssertion(
+            () => Assert.Single(cut.FindAll("[data-testid='dbc-signal']")));
+        cut.Find("[data-testid='dbc-signal']").Click();
+        cut.WaitForAssertion(
+            () => Assert.Single(cut.FindAll("[data-testid='dbc-edit-comment']")));
+
+        cut.Find("[data-testid='dbc-edit-comment']").Click();
+        cut.Find("[data-testid='dbc-edit-comment-text']").Input("reviewed comment");
+        await cut.Find("[data-testid='dbc-edit-apply']")
+            .ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(
+            () => Assert.Empty(cut.FindAll("[data-testid='dbc-edit-dialog']")));
+        Assert.Contains(
+            "reviewed comment",
+            cut.Find("[data-testid='dbc-property-comments']").TextContent,
+            StringComparison.Ordinal);
+
+        cut.Find("[data-testid='dbc-mode-text']").Click();
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("textarea")));
+        Assert.Contains(
+            "CM_ SG_ 100 A \"reviewed comment\";",
+            cut.Find("textarea").GetAttribute("value"),
+            StringComparison.Ordinal);
     }
 
     private static long ReadRevision(IRenderedComponent<DbcViewWorkspace> cut)

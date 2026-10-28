@@ -174,9 +174,7 @@ public sealed class DbcPanelsTests : BunitContext
         var model = new DbcTreeModel(workspace);
         var cut = Render<DbcTreePanel>(p => p.Add(x => x.Model, model));
 
-        var folderB = cut.FindAll("[data-testid='dbc-folder']")
-            .Single(button => button.TextContent.Contains("B", StringComparison.Ordinal));
-        folderB.Click();
+        TreeTestHelpers.ClickFolder(cut, "B");
 
         Assert.Equal("B", model.SelectedFolder);
         Assert.Contains(
@@ -211,21 +209,24 @@ public sealed class DbcPanelsTests : BunitContext
     }
 
     [Fact]
-    public void TreePanel_exposes_native_keyboard_operable_buttons()
+    public void TreePanel_exposes_an_accessible_tree_with_roving_keyboard_host()
     {
         using var workspace = TestWorkspace.Create();
         workspace.AddFile("can-a", "a.dbc", ValidDbc);
         var model = new DbcTreeModel(workspace);
         var cut = Render<DbcTreePanel>(p => p.Add(x => x.Model, model));
 
-        var folder = cut.Find("[data-testid='dbc-folder']");
-        Assert.Equal("BUTTON", folder.TagName, StringComparer.OrdinalIgnoreCase);
-        Assert.False(string.IsNullOrWhiteSpace(folder.GetAttribute("aria-pressed")));
+        var tree = cut.Find("[role='tree']");
+        Assert.Equal("0", tree.GetAttribute("tabindex"));
 
-        var file = cut.Find("[data-testid='dbc-file']");
-        Assert.Equal("BUTTON", file.TagName, StringComparer.OrdinalIgnoreCase);
-        Assert.Equal("false", file.GetAttribute("aria-pressed"));
-        Assert.Null(file.GetAttribute("tabindex"));
+        var items = cut.FindAll("[role='treeitem']");
+        Assert.Equal(2, items.Count);
+        Assert.Contains(
+            items,
+            item => item.QuerySelector("[data-testid='dbc-folder']") is not null);
+        Assert.Contains(
+            items,
+            item => item.QuerySelector("[data-testid='dbc-file']") is not null);
 
         var upload = cut.Find(".dbc-upload input[type='file']");
         Assert.Null(upload.GetAttribute("hidden"));
@@ -243,8 +244,8 @@ public sealed class DbcPanelsTests : BunitContext
         Assert.DoesNotContain("📁", cut.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("📄", cut.Markup, StringComparison.Ordinal);
 
-        var folderIcon = cut.Find("[data-testid='dbc-folder'] svg");
-        var fileIcon = cut.Find("[data-testid='dbc-file'] svg");
+        var folderIcon = cut.Find(".dbc-tree-folder-node .dbc-tree-icon");
+        var fileIcon = cut.Find(".dbc-tree-file-node .dbc-tree-icon");
         Assert.Equal("true", folderIcon.GetAttribute("aria-hidden"));
         Assert.Equal("true", fileIcon.GetAttribute("aria-hidden"));
         Assert.Contains("can-a", cut.Find("[data-testid='dbc-folder']").TextContent, StringComparison.Ordinal);
@@ -252,19 +253,45 @@ public sealed class DbcPanelsTests : BunitContext
     }
 
     [Fact]
-    public void TreePanel_file_selection_sets_aria_pressed()
+    public void TreePanel_file_selection_sets_tree_selection()
     {
         using var workspace = TestWorkspace.Create();
         var entry = workspace.AddFile("can-a", "a.dbc", ValidDbc);
         var model = new DbcTreeModel(workspace);
         var cut = Render<DbcTreePanel>(p => p.Add(x => x.Model, model));
 
-        cut.Find("[data-testid='dbc-file']").Click();
+        TreeTestHelpers.ClickFile(cut, "a.dbc");
 
         Assert.Equal(entry.Id, model.SelectedDocument);
-        Assert.Equal(
-            "true",
-            cut.Find("[data-testid='dbc-file']").GetAttribute("aria-pressed"));
+        cut.WaitForAssertion(
+            () => Assert.Equal(
+                "true",
+                cut.Find(".dbc-tree-file-node").GetAttribute("aria-selected")));
+    }
+
+    [Fact]
+    public void TreePanel_keeps_the_active_file_selected_when_folder_is_chosen()
+    {
+        using var workspace = TestWorkspace.Create();
+        workspace.CreateFolder("other");
+        var entry = workspace.AddFile("can-a", "a.dbc", ValidDbc);
+        var model = new DbcTreeModel(workspace);
+        var cut = Render<DbcTreePanel>(p => p.Add(x => x.Model, model));
+
+        TreeTestHelpers.ClickFile(cut, "a.dbc");
+        Assert.Equal(entry.Id, model.SelectedDocument);
+
+        TreeTestHelpers.ClickFolder(cut, "other");
+        Assert.Equal("other", model.SelectedFolder);
+
+        cut.WaitForAssertion(
+            () =>
+            {
+                Assert.Equal("true", cut.Find(".dbc-tree-file-node").GetAttribute("aria-selected"));
+                var selectedFolder = cut.FindAll(".dbc-tree-folder-node")
+                    .Single(node => node.TextContent.Contains("other", StringComparison.Ordinal));
+                Assert.Equal("true", selectedFolder.GetAttribute("aria-selected"));
+            });
     }
 
     [Fact]
@@ -392,7 +419,13 @@ public sealed class DbcPanelsTests : BunitContext
 
         Assert.NotEmpty(cut.FindAll("[data-testid='dbc-parse-warnings']"));
         Assert.Empty(cut.FindAll("[data-testid='dbc-parse-errors']"));
-        Assert.Contains("TooWide", cut.Markup, StringComparison.Ordinal);
+
+        cut.Find("[data-testid='dbc-toggle-message']").Click();
+        cut.WaitForAssertion(
+            () => Assert.Contains(
+                "TooWide",
+                cut.Find("[data-testid='dbc-signal']").TextContent,
+                StringComparison.Ordinal));
     }
 
     [Fact]
@@ -409,7 +442,7 @@ public sealed class DbcPanelsTests : BunitContext
 
         cut.WaitForAssertion(
             () => Assert.Single(cut.FindAll("[data-testid='dbc-file']")));
-        cut.Find("[data-testid='dbc-file']").Click();
+        TreeTestHelpers.ClickFile(cut);
 
         // Switch the editor to text view so the textarea renders.
         cut.WaitForAssertion(
