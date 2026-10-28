@@ -88,7 +88,7 @@ public sealed class DbcViewWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void Editor_opens_two_same_kind_documents_with_independent_state()
+    public async Task Editor_opens_two_same_kind_documents_with_independent_state()
     {
         // FR-01: two documents of the same Kind must keep independent editor
         // state instead of sharing one singleton ViewModel.
@@ -102,8 +102,7 @@ public sealed class DbcViewWorkspaceTests : BunitContext
         // Flush pending renders before interacting: a stale element whose
         // event handler was replaced by a queued render makes bUnit throw
         // UnknownEventHandlerIdException.
-        cut.Render();
-        cut.Find("[data-testid='dbc-file']").Click();
+        await cut.InvokeAsync(() => cut.Find("[data-testid='dbc-file']").Click());
         cut.WaitForAssertion(
             () => Assert.Equal(
                 "DBC/a.dbc",
@@ -115,8 +114,7 @@ public sealed class DbcViewWorkspaceTests : BunitContext
             .UploadFiles(InputFileContent.CreateFromText(ValidDbc, "b.dbc"));
         cut.WaitForAssertion(
             () => Assert.Equal(2, cut.FindAll("[data-testid='dbc-file']").Count));
-        cut.Render();
-        cut.Find("[data-file-key='DBC/b.dbc']").Click();
+        await cut.InvokeAsync(() => cut.Find("[data-file-key='DBC/b.dbc']").Click());
 
         cut.WaitForAssertion(
             () =>
@@ -129,18 +127,15 @@ public sealed class DbcViewWorkspaceTests : BunitContext
 
         // Switch to the first document, switch its editor to text view, and
         // type unsaved content into its buffer.
-        cut.Render();
-        cut.FindAll("[data-atlas-group-kind='document'] [role='tab']")
+        await cut.InvokeAsync(() => cut.FindAll("[data-atlas-group-kind='document'] [role='tab']")
             .Single(tab => tab.GetAttribute("aria-label") == "DBC/a.dbc")
-            .Click();
+            .Click());
         cut.WaitForAssertion(
             () => Assert.NotEmpty(cut.FindAll("[data-testid='dbc-mode-text']")));
-        cut.Render();
-        cut.Find("[data-testid='dbc-mode-text']").Click();
+        await cut.InvokeAsync(() => cut.Find("[data-testid='dbc-mode-text']").Click());
         cut.WaitForAssertion(
             () => Assert.Single(cut.FindAll("[data-testid='dbc-editor'] textarea")));
-        cut.Render();
-        cut.Find("[data-testid='dbc-editor'] textarea").Change("unsaved-A");
+        await cut.InvokeAsync(() => cut.Find("[data-testid='dbc-editor'] textarea").Change("unsaved-A"));
         // The editor's fire-and-forget StateHasChanged re-render must settle
         // before the next tab click, otherwise the click targets a stale DOM
         // element whose event handler was replaced.
@@ -152,19 +147,17 @@ public sealed class DbcViewWorkspaceTests : BunitContext
         // Switch to the second document and back to the first: the first
         // document keeps its unsaved buffer because each tab resolves its own
         // model through the content state scope.
-        cut.Render();
-        cut.FindAll("[data-atlas-group-kind='document'] [role='tab']")
+        await cut.InvokeAsync(() => cut.FindAll("[data-atlas-group-kind='document'] [role='tab']")
             .Single(tab => tab.GetAttribute("aria-label") == "DBC/b.dbc")
-            .Click();
+            .Click());
         cut.WaitForAssertion(
             () => Assert.Equal(
                 "DBC/b.dbc",
                 cut.Find("[data-atlas-group-kind='document'] [role='tab'][aria-selected]")
                     .GetAttribute("aria-label")));
-        // Flush any pending render before re-querying the tab elements.
-        cut.Render();
-        var backTabs = cut.FindAll("[data-atlas-group-kind='document'] [role='tab']");
-        backTabs[0].Click();
+        await cut.InvokeAsync(() => cut.FindAll("[data-atlas-group-kind='document'] [role='tab']")
+            .Single(tab => tab.GetAttribute("aria-label") == "DBC/a.dbc")
+            .Click());
         cut.WaitForAssertion(
             () =>
             {

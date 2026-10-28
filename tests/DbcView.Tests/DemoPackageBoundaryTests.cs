@@ -219,10 +219,13 @@ public sealed class DemoPackageBoundaryTests
     private static IEnumerable<string> ProjectReferences(string projectPath)
     {
         var document = XDocument.Load(projectPath);
+        var projectDirectory = Path.GetDirectoryName(projectPath)!;
         return document.Descendants("ProjectReference")
             .Select(element => (string?)element.Attribute("Include"))
             .Where(value => value is not null)
-            .Select(value => Path.GetFullPath(Path.Combine(Path.GetDirectoryName(projectPath)!, value!)))
+            .Select(value => Path.GetFullPath(Path.Combine(
+                projectDirectory,
+                value!.Replace('\\', Path.DirectorySeparatorChar))))
             .ToArray();
     }
 
