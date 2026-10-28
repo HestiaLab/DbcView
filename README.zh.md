@@ -143,3 +143,11 @@ DbcView/
 
 样例文件仅用于演示和测试。与 BMW 无任何关联或认可关系；"BMW" 及车辆名称均为
 各自所有者的商标。数据可能不准确或已过时，请勿用于生产车辆。
+
+## 许可证
+
+本项目采用 [Apache License 2.0](LICENSE) 许可。
+
+Copyright 2026 HestiaLab.
+
+第三方样例数据保留原始许可：`samples/bmw_e9x_e8x.dbc` 为 MIT 许可，详见文件头。

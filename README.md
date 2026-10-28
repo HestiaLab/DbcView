@@ -163,3 +163,12 @@ The sample file is provided for demonstration and testing only. It is not
 endorsed by or affiliated with BMW; "BMW" and vehicle names are trademarks
 of their respective owners. The data may be inaccurate or outdated — do not
 use it in production vehicles.
+
+## License
+
+DbcView is licensed under the [Apache License 2.0](LICENSE).
+
+Copyright 2026 HestiaLab.
+
+Third-party sample data keeps its original license: `samples/bmw_e9x_e8x.dbc`
+is MIT licensed; see the file header.
