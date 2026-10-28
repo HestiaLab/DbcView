@@ -65,6 +65,8 @@ flowchart TD
 - Every file and folder entry and the upload picker are keyboard operable;
   below 700 px a compact Explorer / Editor / Properties switcher keeps all
   panels reachable.
+- The neutral tool interface follows the operating system light or dark
+  color scheme.
 
 ## Project structure
 

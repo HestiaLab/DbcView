@@ -9,14 +9,21 @@
     {
         <div class="dbc-tree-message @(_uploadFailed ? "error" : "")"
              data-testid="dbc-tree-message"
-             role="@(_uploadFailed ? "alert" : "status")">@_uploadMessage</div>
+             role="@(_uploadFailed ? "alert" : "status")">
+            <DbcIcon Name="@(_uploadFailed ? "error" : "check")" Size="14" />
+            <span>@_uploadMessage</span>
+        </div>
     }
     <div class="dbc-tree-actions">
         <button class="dbc-action" type="button"
                 data-testid="dbc-new-folder"
-                @onclick="OnNewFolder">New folder</button>
-        <label class="dbc-upload">
-            Upload .dbc
+                @onclick="OnNewFolder">
+            <DbcIcon Name="folder-plus" Size="14" />
+            <span>New folder</span>
+        </button>
+        <label class="dbc-upload dbc-action">
+            <DbcIcon Name="upload" Size="14" />
+            <span>Upload .dbc</span>
             <InputFile accept=".dbc" OnChange="OnUpload" />
         </label>
     </div>
@@ -26,7 +33,11 @@
 
     @if (Model.Folders.Count == 0)
     {
-        <p class="dbc-empty" data-testid="dbc-tree-empty">No DBC folders yet.</p>
+        <div class="dbc-empty-state" data-testid="dbc-tree-empty">
+            <DbcIcon Name="folder" Size="20" />
+            <p class="dbc-empty-title">No DBC folders yet.</p>
+            <p class="dbc-empty-hint">Create a folder or upload a .dbc file to start organizing documents.</p>
+        </div>
     }
     else
     {
@@ -38,7 +49,8 @@
                         data-testid="dbc-folder"
                         aria-pressed="@(Model.SelectedFolder == folder ? "true" : "false")"
                         @onclick="() => Model.SelectFolder(folder)">
-                    📁 @folder
+                    <DbcIcon Name="folder" CssClass="dbc-tree-icon" Size="14" />
+                    <span class="dbc-tree-label">@folder</span>
                 </button>
                 @foreach (var file in Model.FilesFor(folder))
                 {
@@ -48,7 +60,8 @@
                             data-file-key="@file.Id.Key"
                             aria-pressed="@(IsSelected(file) ? "true" : "false")"
                             @onclick="() => Model.Select(file.Id)">
-                        📄 @file.Id.FileName
+                        <DbcIcon Name="file" CssClass="dbc-tree-icon" Size="14" />
+                        <span class="dbc-tree-label">@file.Id.FileName</span>
                     </button>
                 }
             </div>

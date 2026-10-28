@@ -3,6 +3,7 @@
 @using Atlas.Blazor.Content
 @using Atlas.Core
 @using Atlas.Core.Changes
+@using Atlas.Core.Events
 @using Atlas.Core.Items
 @using Atlas.Core.Layout
 @using Atlas.Core.Operations
@@ -44,7 +45,11 @@
                                      OnRedo="RedoAsync" />
             </TopToolbarContent>
             <StatusBarContent>
-                <DbcViewStatusBar OperationStatus="@operationStatus" />
+                <DbcViewStatusBar OperationStatus="@operationStatus"
+                                  Document="@currentDocument?.Key"
+                                  Revision="@revision"
+                                  ErrorCount="@errorCount"
+                                  WarningCount="@warningCount" />
             </StatusBarContent>
             <ContentRoutes>
                 <AtlasContentRoute Kind="@DbcContentKinds.DbcTree">
@@ -77,6 +82,11 @@
     private IAtlasWorkspace? workspace;
     private string operationStatus = "Ready";
     private string activePanel = "editor";
+    private DbcDocumentId? currentDocument;
+    private DockItemId? currentDocumentItemId;
+    private long revision;
+    private int errorCount;
+    private int warningCount;
     private bool editorPlaceholderConsumed;
     private int selectionVersion;
 
@@ -99,8 +109,12 @@
 
         workspace = result.Value;
         workspace.Changed += OnWorkspaceChanged;
+        workspace.DomainEvents.ItemActivated += OnItemActivated;
+        workspace.DomainEvents.ItemClosed += OnItemClosed;
+        revision = workspace.Current.Revision;
 
         dbcWorkspace = CompositionFactory.CreateWorkspace();
+        dbcWorkspace.Changed += OnDocumentStoreChanged;
         dbcTree = new DbcTreeModel(dbcWorkspace);
         dbcProperty = new DbcPropertyModel();
         dbcTree.DocumentSelectionChanged += OnDocumentSelectionChanged;
@@ -181,6 +195,9 @@
             }
 
             dbcProperty.ShowFile(file);
+            currentDocument = documentId;
+            currentDocumentItemId = FindOpenItemId(documentId) ?? item.Id;
+            UpdateStatusDiagnostics();
             operationStatus = $"Opened {documentId.Key}";
             activePanel = "editor";
         }
@@ -243,8 +260,103 @@
 
     private void OnWorkspaceChanged(object? sender, WorkspaceChangedEventArgs args)
     {
-        operationStatus = $"Revision {args.ChangeSet.AfterRevision}";
+        revision = args.ChangeSet.AfterRevision;
+        UpdateStatusDiagnostics();
         _ = RefreshAsync();
+    }
+
+    private void OnDocumentStoreChanged()
+    {
+        UpdateStatusDiagnostics();
+        _ = RefreshAsync();
+    }
+
+    private void OnItemActivated(object? sender, ItemActivatedEventArgs args)
+    {
+        if (workspace is null
+            || !workspace.Current.Items.TryGetValue(args.ItemId, out var item)
+            || item.Kind != DockItemKind.Document
+            || !DbcDocumentId.TryParseKey(item.Content.ResourceId, out var documentId))
+        {
+            return;
+        }
+
+        currentDocument = documentId;
+        currentDocumentItemId = args.ItemId;
+        operationStatus = $"Opened {documentId.Key}";
+        if (dbcWorkspace.Find(documentId) is { } file)
+        {
+            dbcProperty.ShowFile(file);
+        }
+
+        UpdateStatusDiagnostics();
+        _ = RefreshAsync();
+    }
+
+    private void OnItemClosed(object? sender, ItemClosedEventArgs args)
+    {
+        if (currentDocumentItemId != args.ItemId)
+        {
+            return;
+        }
+
+        currentDocument = null;
+        currentDocumentItemId = null;
+        errorCount = 0;
+        warningCount = 0;
+        operationStatus = "Ready";
+        _ = RefreshAsync();
+    }
+
+    private DockItemId? FindOpenItemId(DbcDocumentId documentId)
+    {
+        if (workspace is null)
+        {
+            return null;
+        }
+
+        foreach (var pair in workspace.Current.Items)
+        {
+            if (pair.Value.Kind == DockItemKind.Document
+                && DbcDocumentId.TryParseKey(pair.Value.Content.ResourceId, out var candidate)
+                && candidate == documentId)
+            {
+                return pair.Key;
+            }
+        }
+
+        return null;
+    }
+
+    private void UpdateStatusDiagnostics()
+    {
+        errorCount = 0;
+        warningCount = 0;
+
+        if (currentDocument is null)
+        {
+            return;
+        }
+
+        var file = dbcWorkspace.Find(currentDocument.Value);
+        if (file is null)
+        {
+            currentDocument = null;
+            currentDocumentItemId = null;
+            return;
+        }
+
+        foreach (var diagnostic in file.ParseResult.Diagnostics)
+        {
+            if (diagnostic.Severity == DbcDiagnosticSeverity.Error)
+            {
+                errorCount++;
+            }
+            else
+            {
+                warningCount++;
+            }
+        }
     }
 
     private async Task RefreshAsync()
@@ -267,6 +379,9 @@
         }
 
         workspace.Changed -= OnWorkspaceChanged;
+        workspace.DomainEvents.ItemActivated -= OnItemActivated;
+        workspace.DomainEvents.ItemClosed -= OnItemClosed;
+        dbcWorkspace.Changed -= OnDocumentStoreChanged;
         dbcTree.DocumentSelectionChanged -= OnDocumentSelectionChanged;
         dbcTree.Dispose();
         dbcWorkspace.Dispose();

@@ -60,6 +60,7 @@ flowchart TD
   和稳定错误码的诊断信息。合法空文件仍显示 “No messages in this DBC file”。
 - 文件、文件夹和上传选择器均可仅用键盘操作；宽度低于 700 px 时，通过
   Explorer / Editor / Properties 切换器保证所有面板可达。
+- 中性的工具型界面会跟随操作系统的浅色或深色配色。
 
 ## 项目结构
 

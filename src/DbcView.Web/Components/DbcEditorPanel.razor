@@ -7,61 +7,88 @@
 <div class="dbc-editor" data-testid="dbc-editor" aria-label="DBC editor">
     @if (Model.DocumentId is null)
     {
-        <p class="dbc-empty">Select a .dbc file in the explorer to edit it.</p>
+        <div class="dbc-empty-state">
+            <DbcIcon Name="file" Size="22" />
+            <p class="dbc-empty-title">No document open</p>
+            <p class="dbc-empty-hint">Choose a .dbc file in the explorer to inspect or edit it.</p>
+        </div>
     }
     else
     {
         <div class="dbc-editor-toolbar">
-            <span class="dbc-editor-file">@Model.DocumentId.Value.Key</span>
-            <button type="button"
-                    data-testid="dbc-mode-text"
-                    class="dbc-action @(Model.Mode == DbcEditorModel.ViewMode.Text ? "active" : "")"
-                    @onclick="() => Model.SetMode(DbcEditorModel.ViewMode.Text)">Text</button>
-            <button type="button"
-                    data-testid="dbc-mode-table"
-                    class="dbc-action @(Model.Mode == DbcEditorModel.ViewMode.Table ? "active" : "")"
-                    @onclick="() => Model.SetMode(DbcEditorModel.ViewMode.Table)">Table</button>
+            <span class="dbc-editor-file" title="@Model.DocumentId.Value.Key">
+                <DbcIcon Name="file" Size="14" />
+                <span class="dbc-editor-file-name">@Model.DocumentId.Value.Key</span>
+            </span>
+            <div class="dbc-segmented" role="group" aria-label="Editor view">
+                <button type="button"
+                        data-testid="dbc-mode-text"
+                        aria-pressed="@(Model.Mode == DbcEditorModel.ViewMode.Text ? "true" : "false")"
+                        @onclick="() => Model.SetMode(DbcEditorModel.ViewMode.Text)">Text</button>
+                <button type="button"
+                        data-testid="dbc-mode-table"
+                        aria-pressed="@(Model.Mode == DbcEditorModel.ViewMode.Table ? "true" : "false")"
+                        @onclick="() => Model.SetMode(DbcEditorModel.ViewMode.Table)">Table</button>
+            </div>
         </div>
 
         @if (_titleFailure is not null)
         {
-            <div class="dbc-alert error" role="alert" data-testid="dbc-title-error">@_titleFailure</div>
+            <div class="dbc-alert error" role="alert" data-testid="dbc-title-error">
+                <DbcIcon Name="error" Size="14" />
+                <span>@_titleFailure</span>
+            </div>
         }
 
         @if (_saveFailure is not null)
         {
-            <div class="dbc-alert error" role="alert" data-testid="dbc-save-error">@_saveFailure</div>
+            <div class="dbc-alert error" role="alert" data-testid="dbc-save-error">
+                <DbcIcon Name="error" Size="14" />
+                <span>@_saveFailure</span>
+            </div>
         }
         else if (Model.SaveError is not null)
         {
-            <div class="dbc-alert error" role="alert" data-testid="dbc-save-error">@Model.SaveError</div>
+            <div class="dbc-alert error" role="alert" data-testid="dbc-save-error">
+                <DbcIcon Name="error" Size="14" />
+                <span>@Model.SaveError</span>
+            </div>
         }
 
         @if (Model.ParseResult is { HasErrors: true } parseResult)
         {
             <div class="dbc-alert error" role="alert" data-testid="dbc-parse-errors">
-                <p class="dbc-alert-title">
-                    @(Model.LastSaveResult is not null
-                        ? $"Saved as an unvalidated draft ({parseResult.ErrorCount} DBC error(s)). Raw text was kept."
-                        : $"This file contains {parseResult.ErrorCount} DBC error(s).")
-                </p>
-                <DbcDiagnosticList Diagnostics="parseResult.Diagnostics" />
+                <DbcIcon Name="error" Size="14" />
+                <div class="dbc-alert-body">
+                    <p class="dbc-alert-title">
+                        @(Model.LastSaveResult is not null
+                            ? $"Saved as an unvalidated draft ({parseResult.ErrorCount} DBC error(s)). Raw text was kept."
+                            : $"This file contains {parseResult.ErrorCount} DBC error(s).")
+                    </p>
+                    <DbcDiagnosticList Diagnostics="parseResult.Diagnostics" />
+                </div>
             </div>
         }
         else if (Model.ParseResult is { Diagnostics.Count: > 0 } withWarnings)
         {
             <div class="dbc-alert warning" role="status" data-testid="dbc-parse-warnings">
-                <p class="dbc-alert-title">
-                    @(Model.LastSaveResult is not null
-                        ? $"Saved with {withWarnings.Diagnostics.Count} DBC warning(s)."
-                        : $"{withWarnings.Diagnostics.Count} DBC warning(s) found; the document is still usable.")
-                </p>
-                <DbcDiagnosticList Diagnostics="withWarnings.Diagnostics" />
+                <DbcIcon Name="warning" Size="14" />
+                <div class="dbc-alert-body">
+                    <p class="dbc-alert-title">
+                        @(Model.LastSaveResult is not null
+                            ? $"Saved with {withWarnings.Diagnostics.Count} DBC warning(s)."
+                            : $"{withWarnings.Diagnostics.Count} DBC warning(s) found; the document is still usable.")
+                    </p>
+                    <DbcDiagnosticList Diagnostics="withWarnings.Diagnostics" />
+                </div>
             </div>
         }
         else if (Model.LastSaveResult is not null)
         {
-            <div class="dbc-alert success" role="status" data-testid="dbc-save-success">Saved.</div>
+            <div class="dbc-alert success" role="status" data-testid="dbc-save-success">
+                <DbcIcon Name="check" Size="14" />
+                <span>Saved.</span>
+            </div>
         }
 
         @if (Model.Mode == DbcEditorModel.ViewMode.Text)
@@ -83,15 +110,27 @@
             <div class="dbc-editor-table">
                 @if (Model.ParseResult is null)
                 {
-                    <p class="dbc-empty">This file could not be parsed as DBC.</p>
+                    <div class="dbc-empty-state">
+                        <DbcIcon Name="error" Size="22" />
+                        <p class="dbc-empty-title">This file could not be parsed as DBC.</p>
+                        <p class="dbc-empty-hint">Switch to Text view to inspect the raw content.</p>
+                    </div>
                 }
                 else if (Model.ParseResult.HasErrors)
                 {
-                    <p class="dbc-empty">Table view is unavailable until the DBC errors above are fixed.</p>
+                    <div class="dbc-empty-state">
+                        <DbcIcon Name="warning" Size="22" />
+                        <p class="dbc-empty-title">Table view is unavailable</p>
+                        <p class="dbc-empty-hint">Fix the DBC errors above, then switch back to Table.</p>
+                    </div>
                 }
                 else if (Model.Document!.Messages.Count == 0)
                 {
-                    <p class="dbc-empty">No messages in this DBC file.</p>
+                    <div class="dbc-empty-state">
+                        <DbcIcon Name="table" Size="22" />
+                        <p class="dbc-empty-title">No messages in this DBC file.</p>
+                        <p class="dbc-empty-hint">The file is valid but declares no BO_ messages.</p>
+                    </div>
                 }
                 else
                 {
@@ -126,10 +165,11 @@
                                         <td></td>
                                         <td>
                                             <button type="button"
-                                                    class="dbc-link"
+                                                    class="dbc-link dbc-signal-link"
                                                     data-testid="dbc-signal"
                                                     @onclick="() => HandleSignalSelected(signal)">
-                                                ⤷ @signal.Name
+                                                <DbcIcon Name="signal" Size="12" />
+                                                <span>@signal.Name</span>
                                             </button>
                                         </td>
                                         <td>@signal.Length</td>

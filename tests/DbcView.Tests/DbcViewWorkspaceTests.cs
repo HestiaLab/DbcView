@@ -1,4 +1,5 @@
 #nullable enable
+using System.Globalization;
 using DbcView.Web;
 using DbcView.Web.Components;
 using DbcView.Web.Pages;
@@ -13,6 +14,8 @@ public sealed class DbcViewWorkspaceTests : BunitContext
 {
     private const string ValidDbc =
         "VERSION \"\"\nBU_: XXX\n\nBO_ 100 EmptyMsg: 1 XXX\n";
+
+    private const string InvalidDbc = "this is not a DBC file";
 
     private static readonly string[] LogicalRegions =
     {
@@ -322,11 +325,16 @@ public sealed class DbcViewWorkspaceTests : BunitContext
         Assert.Equal(2, toolbar.QuerySelectorAll("button").Length);
         Assert.DoesNotContain("feature/dbc-view", toolbar.TextContent, StringComparison.Ordinal);
 
-        foreach (var placeholder in new[] { "File", "Edit", "View", "Navigate", "Code", "Run", "Search", "Debug" })
+        foreach (var placeholder in new[]
+                 {
+                     "File", "Edit", "View", "Navigate", "Code", "Run", "Run target", "Search", "Debug",
+                 })
         {
             Assert.DoesNotContain(
                 toolbar.QuerySelectorAll("button"),
-                button => button.TextContent.Trim() == placeholder);
+                button => button.TextContent.Trim() == placeholder
+                    || button.GetAttribute("aria-label") == placeholder
+                    || button.GetAttribute("title") == placeholder);
         }
 
         var status = cut.Find("[data-testid='dbc-view-status-bar']");
@@ -334,6 +342,129 @@ public sealed class DbcViewWorkspaceTests : BunitContext
         Assert.DoesNotContain("UTF-8", status.TextContent, StringComparison.Ordinal);
         Assert.DoesNotContain("4 spaces", status.TextContent, StringComparison.Ordinal);
         Assert.DoesNotContain("LF", status.TextContent, StringComparison.Ordinal);
+        Assert.DoesNotContain("feature/dbc-view", status.TextContent, StringComparison.Ordinal);
+        Assert.DoesNotMatch(@"\bmain\b", status.TextContent);
+    }
+
+    [Fact]
+    public async Task Status_bar_follows_active_tab_activation()
+    {
+        var cut = Render<DbcViewWorkspace>();
+
+        cut.FindComponent<InputFile>()
+            .UploadFiles(
+                InputFileContent.CreateFromText(InvalidDbc, "broken.dbc"),
+                InputFileContent.CreateFromText(ValidDbc, "good.dbc"));
+        cut.WaitForAssertion(
+            () => Assert.Equal(2, cut.FindAll("[data-testid='dbc-file']").Count));
+
+        await cut.InvokeAsync(() => cut.Find("[data-file-key='DBC/broken.dbc']").Click());
+        cut.WaitForAssertion(
+            () => Assert.Contains(
+                "Opened DBC/broken.dbc",
+                cut.Find("[data-testid='dbc-view-status-bar']").TextContent,
+                StringComparison.Ordinal));
+
+        await cut.InvokeAsync(() => cut.Find("[data-file-key='DBC/good.dbc']").Click());
+        cut.WaitForAssertion(
+            () => Assert.Contains(
+                "Opened DBC/good.dbc",
+                cut.Find("[data-testid='dbc-view-status-bar']").TextContent,
+                StringComparison.Ordinal));
+
+        await cut.InvokeAsync(() => cut.FindAll("[data-atlas-group-kind='document'] [role='tab']")
+            .Single(tab => tab.GetAttribute("aria-label") == "DBC/broken.dbc")
+            .Click());
+
+        cut.WaitForAssertion(
+            () =>
+            {
+                Assert.Contains(
+                    "Opened DBC/broken.dbc",
+                    cut.Find("[data-testid='dbc-view-status-bar']").TextContent,
+                    StringComparison.Ordinal);
+                Assert.Contains(
+                    "DBC/broken.dbc",
+                    cut.Find("[data-testid='dbc-status-document']").TextContent,
+                    StringComparison.Ordinal);
+                Assert.Contains(
+                    "2 errors",
+                    cut.Find("[data-testid='dbc-status-errors']").TextContent,
+                    StringComparison.Ordinal);
+                Assert.Contains(
+                    "DBC/broken.dbc",
+                    cut.Find("[data-testid='dbc-property']").TextContent,
+                    StringComparison.Ordinal);
+            });
+    }
+
+    [Fact]
+    public void Status_bar_reflects_real_document_revision_and_saved_diagnostics()
+    {
+        var cut = Render<DbcViewWorkspace>();
+
+        cut.FindComponent<InputFile>()
+            .UploadFiles(
+                InputFileContent.CreateFromText(InvalidDbc, "broken.dbc"),
+                InputFileContent.CreateFromText(ValidDbc, "good.dbc"));
+        cut.WaitForAssertion(
+            () => Assert.Equal(2, cut.FindAll("[data-testid='dbc-file']").Count));
+
+        cut.Find("[data-file-key='DBC/broken.dbc']").Click();
+        cut.WaitForAssertion(
+            () =>
+            {
+                Assert.Contains(
+                    "Opened DBC/broken.dbc",
+                    cut.Find("[data-testid='dbc-view-status-bar']").TextContent,
+                    StringComparison.Ordinal);
+                Assert.Contains(
+                    "DBC/broken.dbc",
+                    cut.Find("[data-testid='dbc-status-document']").TextContent,
+                    StringComparison.Ordinal);
+                Assert.Contains(
+                    "2 errors",
+                    cut.Find("[data-testid='dbc-status-errors']").TextContent,
+                    StringComparison.Ordinal);
+            });
+
+        var revisionBeforeSecondTab = ReadRevision(cut);
+
+        cut.Find("[data-file-key='DBC/good.dbc']").Click();
+        cut.WaitForAssertion(
+            () =>
+            {
+                Assert.Contains(
+                    "DBC/good.dbc",
+                    cut.Find("[data-testid='dbc-status-document']").TextContent,
+                    StringComparison.Ordinal);
+                Assert.Empty(cut.FindAll("[data-testid='dbc-status-errors']"));
+                Assert.True(ReadRevision(cut) > revisionBeforeSecondTab);
+            });
+
+        cut.Find("[data-testid='dbc-mode-text']").Click();
+        cut.Find("[data-testid='dbc-editor'] textarea").Change(InvalidDbc);
+        cut.Find("[data-testid='dbc-save']").Click();
+
+        cut.WaitForAssertion(
+            () =>
+            {
+                Assert.Contains(
+                    "2 errors",
+                    cut.Find("[data-testid='dbc-status-errors']").TextContent,
+                    StringComparison.Ordinal);
+                Assert.Contains(
+                    "DBC/good.dbc",
+                    cut.Find("[data-testid='dbc-status-document']").TextContent,
+                    StringComparison.Ordinal);
+            });
+    }
+
+    private static long ReadRevision(IRenderedComponent<DbcViewWorkspace> cut)
+    {
+        var text = cut.Find("[data-testid='dbc-status-revision']").TextContent;
+        var digits = new string(text.Where(char.IsDigit).ToArray());
+        return long.Parse(digits, CultureInfo.InvariantCulture);
     }
 
     [Fact]
