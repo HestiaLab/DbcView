@@ -1,13 +1,14 @@
-using DbcView.Models.Dbc;
-using DbcView.Services;
+using DbcView.Application;
+using DbcView.Domain;
 
 namespace DbcView.ViewModels;
 
 /// <summary>
 /// PanelModel for the DBC editor document. Tracks the open file's raw text
-/// and parsed document and supports text/table view switching. Saving
-/// re-parses the edited content and writes it back through the shared
-/// <see cref="DbcFileStore"/>.
+/// and parse result and supports text/table view switching. Saving always
+/// writes the raw draft back through the application workspace and exposes the
+/// resulting diagnostics; invalid drafts are stored explicitly as unvalidated
+/// content instead of being rejected or accepted silently.
 /// </summary>
 public sealed class DbcEditorModel
 {
@@ -17,16 +18,14 @@ public sealed class DbcEditorModel
         Table,
     }
 
-    private readonly DbcFileStore _store;
+    private readonly DbcFileWorkspace _workspace;
 
-    public DbcEditorModel(DbcFileStore store)
+    public DbcEditorModel(DbcFileWorkspace workspace)
     {
-        _store = store;
+        _workspace = workspace ?? throw new ArgumentNullException(nameof(workspace));
     }
 
-    public string? Folder { get; private set; }
-
-    public string? FileName { get; private set; }
+    public DbcDocumentId? DocumentId { get; private set; }
 
     public string? RawContent { get; private set; }
 
@@ -38,19 +37,30 @@ public sealed class DbcEditorModel
     /// </summary>
     public string EditedContent { get; set; } = string.Empty;
 
-    public DbcDocument? Document { get; private set; }
+    public DbcParseResult? ParseResult { get; private set; }
+
+    public DbcDocument? Document => ParseResult?.Document;
 
     public ViewMode Mode { get; private set; } = ViewMode.Table;
 
+    /// <summary>Set after a successful save; holds the diagnostics of the saved draft.</summary>
+    public DbcParseResult? LastSaveResult { get; private set; }
+
+    /// <summary>Set when the save operation itself failed (for example, the file disappeared).</summary>
+    public string? SaveError { get; private set; }
+
     public event Action? StateChanged;
 
-    public void Open(string folder, string file, string content, DbcDocument? parsed)
+    public void Open(DbcFileEntry file)
     {
-        Folder = folder;
-        FileName = file;
-        RawContent = content;
-        EditedContent = content;
-        Document = parsed;
+        ArgumentNullException.ThrowIfNull(file);
+
+        DocumentId = file.Id;
+        RawContent = file.Content;
+        EditedContent = file.Content;
+        ParseResult = file.ParseResult;
+        LastSaveResult = null;
+        SaveError = null;
         Notify();
     }
 
@@ -65,24 +75,31 @@ public sealed class DbcEditorModel
         Notify();
     }
 
-    public void Save()
+    public DbcSaveOutcome Save()
     {
-        if (Folder is null || FileName is null)
+        if (DocumentId is null)
         {
-            throw new InvalidOperationException(
-                "Cannot save without an open file.");
+            SaveError = "Cannot save without an open file.";
+            Notify();
+            return new DbcSaveOutcome(false, null, SaveError);
         }
 
-        _store.UpdateFileContent(Folder, FileName, EditedContent);
-
-        var updated = _store.Find(Folder, FileName);
-        if (updated is not null)
+        try
         {
+            var updated = _workspace.Save(DocumentId.Value, EditedContent);
             RawContent = updated.Content;
-            Document = updated.Parsed;
+            ParseResult = updated.ParseResult;
+            LastSaveResult = updated.ParseResult;
+            SaveError = null;
+            Notify();
+            return new DbcSaveOutcome(true, updated.ParseResult, null);
         }
-
-        Notify();
+        catch (DbcFileNotFoundException ex)
+        {
+            SaveError = ex.Message;
+            Notify();
+            return new DbcSaveOutcome(false, null, ex.Message);
+        }
     }
 
     private void Notify()
@@ -90,3 +107,6 @@ public sealed class DbcEditorModel
         StateChanged?.Invoke();
     }
 }
+
+/// <summary>Outcome of an editor save attempt.</summary>
+public sealed record DbcSaveOutcome(bool Saved, DbcParseResult? ParseResult, string? Error);

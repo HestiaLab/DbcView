@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
@@ -14,10 +14,10 @@
     <PackageReference Include="coverlet.collector" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
-    <Reference Include="DbcView">
-      <HintPath>..\..\src\DbcView\bin\$(Configuration)\net6.0\DbcView.dll</HintPath>
-      <Private>true</Private>
-    </Reference>
+    <ProjectReference Include="..\..\src\DbcView\DbcView.csproj" />
+    <ProjectReference Include="..\..\src\DbcView.Domain\DbcView.Domain.csproj" />
+    <ProjectReference Include="..\..\src\DbcView.Application\DbcView.Application.csproj" />
+    <ProjectReference Include="..\..\src\DbcView.Infrastructure\DbcView.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\samples\bmw_e9x_e8x.dbc"

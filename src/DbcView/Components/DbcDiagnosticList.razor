@@ -1,0 +1,18 @@
+@namespace DbcView.Components
+@using DbcView.Domain
+
+<ul class="dbc-diagnostics" data-testid="dbc-diagnostics">
+    @foreach (var diagnostic in Diagnostics)
+    {
+        <li class="dbc-diagnostic @(diagnostic.Severity == DbcDiagnosticSeverity.Error ? "error" : "warning")"
+            data-code="@diagnostic.Code">
+            <span class="dbc-diagnostic-code">@diagnostic.Code</span>
+            <span>@diagnostic</span>
+        </li>
+    }
+</ul>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DbcDiagnostic> Diagnostics { get; set; } = Array.Empty<DbcDiagnostic>();
+}

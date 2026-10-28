@@ -1,7 +1,9 @@
-namespace DbcView.Models.Dbc;
+namespace DbcView.Domain;
 
 /// <summary>
 /// Immutable in-memory representation of a parsed .dbc (CAN database) document.
+/// Messages and raw (<c>CM_</c>/<c>BA_</c>/<c>VAL_</c>/…) lines are kept in one
+/// ordered section list so serialization can preserve their relative position.
 /// </summary>
 public sealed class DbcDocument
 {
@@ -9,14 +11,13 @@ public sealed class DbcDocument
         string version,
         IReadOnlyList<string> nodes,
         string headerSections,
-        IReadOnlyList<DbcMessage> messages,
-        string trailingSections)
+        IReadOnlyList<DbcSection> sections)
     {
         Version = version;
         Nodes = nodes;
         HeaderSections = headerSections;
-        Messages = messages;
-        TrailingSections = trailingSections;
+        Sections = sections;
+        Messages = sections.OfType<DbcMessageSection>().Select(section => section.Message).ToArray();
     }
 
     public string Version { get; }
@@ -27,11 +28,38 @@ public sealed class DbcDocument
     /// <summary>Raw <c>NS_</c>/<c>BS_</c> header blocks between <c>VERSION</c> and <c>BU_</c>, preserved verbatim.</summary>
     public string HeaderSections { get; }
 
+    /// <summary>Messages and raw sections in file order.</summary>
+    public IReadOnlyList<DbcSection> Sections { get; }
+
     /// <summary>Messages declared by <c>BO_</c> sections, in file order.</summary>
     public IReadOnlyList<DbcMessage> Messages { get; }
+}
 
-    /// <summary>Raw trailing sections (<c>CM_</c>/<c>BA_</c>/<c>VAL_</c>/…) preserved verbatim.</summary>
-    public string TrailingSections { get; }
+/// <summary>An ordered piece of a DBC document body.</summary>
+public abstract class DbcSection
+{
+}
+
+/// <summary>A <c>BO_</c> message and its signals.</summary>
+public sealed class DbcMessageSection : DbcSection
+{
+    public DbcMessageSection(DbcMessage message)
+    {
+        Message = message;
+    }
+
+    public DbcMessage Message { get; }
+}
+
+/// <summary>Raw non-message lines preserved verbatim, including blank lines.</summary>
+public sealed class DbcRawSection : DbcSection
+{
+    public DbcRawSection(string text)
+    {
+        Text = text;
+    }
+
+    public string Text { get; }
 }
 
 /// <summary>A CAN message declared by a <c>BO_</c> section.</summary>
@@ -77,7 +105,8 @@ public sealed class DbcSignal
         double min,
         double max,
         string unit,
-        string receiver)
+        string receiver,
+        string? multiplexer = null)
     {
         Name = name;
         StartBit = startBit;
@@ -90,6 +119,7 @@ public sealed class DbcSignal
         Max = max;
         Unit = unit;
         Receiver = receiver;
+        Multiplexer = multiplexer;
     }
 
     public string Name { get; }
@@ -115,4 +145,7 @@ public sealed class DbcSignal
     public string Unit { get; }
 
     public string Receiver { get; }
+
+    /// <summary><c>M</c> (multiplexor) or <c>m&lt;n&gt;</c> (multiplexed) marker, when present.</summary>
+    public string? Multiplexer { get; }
 }

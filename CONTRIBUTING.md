@@ -10,10 +10,40 @@ never references Atlas source projects.
 
 - The only dependency on Atlas is the published `Atlas.Blazor` NuGet package;
   `Atlas.Core` is embedded in that package (single-package distribution).
-- The repository keeps **no project-to-project references**: the test project
-  references the built `DbcView.dll` by `HintPath`, not by `ProjectReference`.
-  `tests/DbcView.Tests/DemoPackageBoundaryTests.cs` verifies the boundary.
+- `src/DbcView.Domain`, `src/DbcView.Application`, and
+  `src/DbcView.Infrastructure` have no Atlas dependency. `src/DbcView`
+  (presentation and composition root) is the only project that references
+  `Atlas.Blazor`.
+- The test project uses internal `ProjectReference` entries to the product
+  projects. It must never reference prebuilt DLLs by `HintPath`.
+- `tests/DbcView.Tests/DemoPackageBoundaryTests.cs` verifies the Atlas
+  boundary, the inward dependency direction, and that no Atlas source files
+  are linked into this repository.
 - Do not add linked Atlas source files, internal APIs, or test helpers.
+
+## Architecture
+
+```text
+src/
+├── DbcView.Domain/          DbcDocument, DbcMessage, DbcSignal, DbcDocumentId,
+│                            parse diagnostics, ordered document sections
+├── DbcView.Application/     use cases (upload/open/save), IDbcCodec and
+│                            IDbcFileRepository ports, DbcFileEntry
+├── DbcView.Infrastructure/  DBC parser/serializer adapter, in-memory repository
+└── DbcView/                 Razor components, ViewModels, Atlas workspace,
+                             composition root (src/DbcView/DemoServiceCollectionExtensions.cs)
+```
+
+Dependencies point inward only:
+
+- Domain → nothing
+- Application → Domain
+- Infrastructure → Application + Domain
+- Presentation → Application + Infrastructure (composition root only) + Domain
+- Tests → any product project
+
+View models never construct concrete parsers or repositories; only the
+composition root binds `DbcCodec` and `InMemoryDbcFileRepository`.
 
 ## Documentation Language
 
@@ -22,6 +52,8 @@ English is the canonical documentation language. `README.zh.md` mirrors
 English version changes.
 
 ## Local Checks
+
+Requires the .NET 10 SDK (pinned by `global.json`).
 
 ```sh
 # Restore .NET dependencies
@@ -40,9 +72,10 @@ dotnet format DbcView.sln --verify-no-changes --no-restore
 ## Testing Unpublished Atlas Packages
 
 To test against unpublished Atlas builds, uncomment the `atlas-local` source
-in `NuGet.Config` and point it at a feed containing `Atlas.Core` and
-`Atlas.Blazor` (for example the Atlas repository's `artifacts/packages`).
-Update the version in `Directory.Packages.props` when needed.
+in `NuGet.Config` and point it at a feed containing the `Atlas.Blazor`
+package (for example the Atlas repository's `artifacts/packages`).
+`Atlas.Core` is embedded in `Atlas.Blazor`, so the feed only needs that one
+package. Update the version in `Directory.Packages.props` when needed.
 
 ## Branches
 
@@ -77,12 +110,3 @@ Before opening a PR:
 
 Use the issue templates for bug reports, feature proposals, and
 infrastructure maintenance requests.
-
-## Architecture
-
-- DBC parsing, document models, and persistence live under `src/DbcView`
-  (`Services/`, `Models/`, `ViewModels/`).
-- Razor components live under `src/DbcView/Components/` and pages under
-  `src/DbcView/Pages/`.
-- Sample DBC data lives in `samples/` and is copied to the test output for
-  the parser tests.

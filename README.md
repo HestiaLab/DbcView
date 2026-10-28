@@ -34,7 +34,7 @@ deploy it through `.github/workflows/deploy.yml`.
 
 ## Quick start
 
-Requires the .NET 6 SDK.
+Requires the .NET 10 SDK (the repository pins it in `global.json`).
 
 ```bash
 dotnet restore DbcView.sln --configfile NuGet.Config
@@ -49,25 +49,38 @@ Open the URL printed by `dotnet run`.
 
 ```mermaid
 flowchart TD
-    UP[Upload .dbc] --> SEL[Select in explorer]
-    SEL --> EDT[Edit table / text]
+    UP[Choose upload target folder] --> SEL[Upload .dbc]
+    SEL --> OPEN[Open in explorer]
+    OPEN --> EDT[Edit table / text]
     EDT --> SAV[Save]
-    SEL --> PRP[Inspect in properties]
+    OPEN --> PRP[Inspect in properties]
 ```
+
+- Uploads are limited to 4 MB and go to the folder shown as **Upload target**.
+- Documents are identified by folder plus file name, so `A/x.dbc` and
+  `B/x.dbc` open as separate tabs and save independently.
+- Invalid DBC text is kept as an **unvalidated draft**: saving always keeps the
+  raw text and shows line-numbered diagnostics with stable codes. A valid
+  empty file still reads "No messages in this DBC file".
+- Every file and folder entry and the upload picker are keyboard operable;
+  below 700 px a compact Explorer / Editor / Properties switcher keeps all
+  panels reachable.
 
 ## Project structure
 
 ```text
 DbcView/
-├── src/DbcView/          Blazor WASM app
-│   ├── Components/       workspace host + panels
-│   ├── Models/Dbc/       DbcDocument, DbcMessage, DbcSignal
-│   ├── Services/         DbcParser, DbcFileStore
-│   ├── ViewModels/       tree / editor / property models
-│   └── Pages/            Index (/), Verification (/verification)
-├── tests/DbcView.Tests/  xUnit + bUnit tests
-├── samples/              sample CAN database files
-└── assets/               README screenshot
+├── src/DbcView.Domain/          document model, identity, diagnostics
+├── src/DbcView.Application/     use cases and repository/codec ports
+├── src/DbcView.Infrastructure/  DBC parser/serializer, in-memory repository
+├── src/DbcView/                 Blazor WASM presentation + composition root
+│   ├── Components/              workspace host + panels
+│   ├── Services/                browser upload reader
+│   ├── ViewModels/              tree / editor / property models
+│   └── Pages/                   Index (/), Verification (/verification)
+├── tests/DbcView.Tests/         xUnit + bUnit tests
+├── samples/                     sample CAN database files
+└── assets/                      README screenshot
 ```
 
 ## Sample data

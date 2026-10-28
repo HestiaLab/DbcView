@@ -1,26 +1,68 @@
 @namespace DbcView.Components
 @using Atlas.Blazor.Content
-@using DbcView.Models.Dbc
-@using DbcView.Services
+@using DbcView.Domain
 @using DbcView.ViewModels
 @implements IDisposable
 
 <div class="dbc-editor" data-testid="dbc-editor" aria-label="DBC editor">
-    @if (Model.FileName is null)
+    @if (Model.DocumentId is null)
     {
         <p class="dbc-empty">Select a .dbc file in the explorer to edit it.</p>
     }
     else
     {
         <div class="dbc-editor-toolbar">
-            <span class="dbc-editor-file">@Model.Folder / @Model.FileName</span>
+            <span class="dbc-editor-file">@Model.DocumentId.Value.Key</span>
             <button type="button"
+                    data-testid="dbc-mode-text"
                     class="dbc-action @(Model.Mode == DbcEditorModel.ViewMode.Text ? "active" : "")"
                     @onclick="() => Model.SetMode(DbcEditorModel.ViewMode.Text)">Text</button>
             <button type="button"
+                    data-testid="dbc-mode-table"
                     class="dbc-action @(Model.Mode == DbcEditorModel.ViewMode.Table ? "active" : "")"
                     @onclick="() => Model.SetMode(DbcEditorModel.ViewMode.Table)">Table</button>
         </div>
+
+        @if (_titleFailure is not null)
+        {
+            <div class="dbc-alert error" role="alert" data-testid="dbc-title-error">@_titleFailure</div>
+        }
+
+        @if (_saveFailure is not null)
+        {
+            <div class="dbc-alert error" role="alert" data-testid="dbc-save-error">@_saveFailure</div>
+        }
+        else if (Model.SaveError is not null)
+        {
+            <div class="dbc-alert error" role="alert" data-testid="dbc-save-error">@Model.SaveError</div>
+        }
+
+        @if (Model.ParseResult is { HasErrors: true } parseResult)
+        {
+            <div class="dbc-alert error" role="alert" data-testid="dbc-parse-errors">
+                <p class="dbc-alert-title">
+                    @(Model.LastSaveResult is not null
+                        ? $"Saved as an unvalidated draft ({parseResult.ErrorCount} DBC error(s)). Raw text was kept."
+                        : $"This file contains {parseResult.ErrorCount} DBC error(s).")
+                </p>
+                <DbcDiagnosticList Diagnostics="parseResult.Diagnostics" />
+            </div>
+        }
+        else if (Model.ParseResult is { Diagnostics.Count: > 0 } withWarnings)
+        {
+            <div class="dbc-alert warning" role="status" data-testid="dbc-parse-warnings">
+                <p class="dbc-alert-title">
+                    @(Model.LastSaveResult is not null
+                        ? $"Saved with {withWarnings.Diagnostics.Count} DBC warning(s)."
+                        : $"{withWarnings.Diagnostics.Count} DBC warning(s) found; the document is still usable.")
+                </p>
+                <DbcDiagnosticList Diagnostics="withWarnings.Diagnostics" />
+            </div>
+        }
+        else if (Model.LastSaveResult is not null)
+        {
+            <div class="dbc-alert success" role="status" data-testid="dbc-save-success">Saved.</div>
+        }
 
         @if (Model.Mode == DbcEditorModel.ViewMode.Text)
         {
@@ -31,18 +73,23 @@
                           aria-label="DBC raw text"></textarea>
                 <div class="dbc-editor-actions">
                     <button type="button" class="dbc-action primary"
-                            @onclick="Model.Save">Save</button>
+                            data-testid="dbc-save"
+                            @onclick="OnSave">Save</button>
                 </div>
             </div>
         }
         else
         {
             <div class="dbc-editor-table">
-                @if (Model.Document is null)
+                @if (Model.ParseResult is null)
                 {
                     <p class="dbc-empty">This file could not be parsed as DBC.</p>
                 }
-                else if (Model.Document.Messages.Count == 0)
+                else if (Model.ParseResult.HasErrors)
+                {
+                    <p class="dbc-empty">Table view is unavailable until the DBC errors above are fixed.</p>
+                }
+                else if (Model.Document!.Messages.Count == 0)
                 {
                     <p class="dbc-empty">No messages in this DBC file.</p>
                 }
@@ -81,7 +128,7 @@
                                             <button type="button"
                                                     class="dbc-link"
                                                     data-testid="dbc-signal"
-                                                    @onclick="() => HandleSignalSelected(message, signal)">
+                                                    @onclick="() => HandleSignalSelected(signal)">
                                                 ⤷ @signal.Name
                                             </button>
                                         </td>
@@ -100,6 +147,8 @@
 
 @code {
     private string? _syncedTitle;
+    private string? _saveFailure;
+    private string? _titleFailure;
 
     /// <summary>
     /// The editor model. Single-panel tests pass it directly; the workspace
@@ -112,9 +161,9 @@
     [Parameter, EditorRequired]
     public AtlasContentContext Content { get; set; } = null!;
 
-    /// <summary>Gets or sets the shared DBC file store used to resolve models from Context.</summary>
+    /// <summary>Gets or sets the application workspace used to resolve models from Context.</summary>
     [Parameter]
-    public DbcFileStore? Store { get; set; }
+    public DbcFileWorkspace? Workspace { get; set; }
 
     /// <summary>Gets or sets the explorer model used to open the current selection into a fresh model.</summary>
     [Parameter]
@@ -144,29 +193,25 @@
 
     private DbcEditorModel CreateModel()
     {
-        if (Store is null)
+        if (Workspace is null)
         {
             throw new InvalidOperationException(
-                "A DbcFileStore is required to resolve an editor model from Content.");
+                "A DbcFileWorkspace is required to resolve an editor model from Content.");
         }
 
-        var model = new DbcEditorModel(Store);
+        var model = new DbcEditorModel(Workspace);
 
         // The factory runs once per ContentReference, when the item first
         // renders. At that moment the explorer selection is the file this tab
         // was opened for, so open it into the fresh model.
-        if (Tree is not null
-            && Tree.SelectedFolder is not null
-            && Tree.SelectedFile is not null
-            && string.Equals(
-                Tree.SelectedFile,
-                Content.Reference.ResourceId,
-                StringComparison.Ordinal))
+        if (Tree?.SelectedDocument is { } selected
+            && DbcDocumentId.TryParseKey(Content.Reference.ResourceId, out var resourceId)
+            && resourceId == selected)
         {
-            var file = Store.Find(Tree.SelectedFolder, Tree.SelectedFile);
+            var file = Workspace.Find(selected);
             if (file is not null)
             {
-                model.Open(Tree.SelectedFolder, file.Name, file.Content, file.Parsed);
+                model.Open(file);
             }
         }
 
@@ -175,24 +220,39 @@
 
     private void OnModelChanged()
     {
-        if (_syncedTitle != Model.FileName)
+        _ = RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        try
         {
-            // Only a file switch changes the tab title; updating presentation
-            // on every StateChanged (view mode toggles, save) would pollute
-            // the workspace Undo history with no-op presentation operations.
-            _syncedTitle = Model.FileName;
-            _ = InvokeAsync(async () =>
+            var title = Model.DocumentId?.Key;
+            var titleChanged = _syncedTitle != title;
+            _syncedTitle = title;
+            await InvokeAsync(StateHasChanged);
+            if (titleChanged && title is not null && Content is not null)
             {
-                StateHasChanged();
-                if (Content is not null && Model.FileName is not null)
-                {
-                    await Content.Commands.UpdatePresentationAsync(Model.FileName, iconKey: null);
-                }
-            });
+                await Content.Commands.UpdatePresentationAsync(title, iconKey: null);
+            }
         }
-        else
+        catch (Exception ex)
         {
-            _ = InvokeAsync(StateHasChanged);
+            _titleFailure = $"Tab title update failed: {ex.Message}";
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void OnSave()
+    {
+        _saveFailure = null;
+        try
+        {
+            Model.Save();
+        }
+        catch (Exception ex)
+        {
+            _saveFailure = $"Save failed: {ex.Message}";
         }
     }
 
@@ -201,7 +261,7 @@
         return OnMessageSelected.InvokeAsync(message);
     }
 
-    private Task HandleSignalSelected(DbcMessage message, DbcSignal signal)
+    private Task HandleSignalSelected(DbcSignal signal)
     {
         return OnSignalSelected.InvokeAsync(signal);
     }

@@ -31,7 +31,7 @@ flowchart LR
 
 ## 快速开始
 
-需要 .NET 6 SDK。
+需要 .NET 10 SDK（仓库通过 `global.json` 固定版本）。
 
 ```bash
 dotnet restore DbcView.sln --configfile NuGet.Config
@@ -46,25 +46,36 @@ dotnet run --project src/DbcView/DbcView.csproj --no-restore
 
 ```mermaid
 flowchart TD
-    UP[上传 .dbc 文件] --> SEL[在文件树中选择]
-    SEL --> EDT[表格 / 文本编辑]
+    UP[选择上传目标文件夹] --> SEL[上传 .dbc 文件]
+    SEL --> OPEN[在文件树中打开]
+    OPEN --> EDT[表格 / 文本编辑]
     EDT --> SAV[保存]
-    SEL --> PRP[在属性面板中查看]
+    OPEN --> PRP[在属性面板中查看]
 ```
+
+- 上传上限为 4 MB，文件会进入界面上显示的 **Upload target** 文件夹。
+- 文档标识由目录与文件名共同组成，因此 `A/x.dbc` 与 `B/x.dbc` 会作为
+  两个独立标签打开并分别保存。
+- 非法 DBC 文本会保留为**未验证草稿**：保存始终保留原始文本，并显示带行号
+  和稳定错误码的诊断信息。合法空文件仍显示 “No messages in this DBC file”。
+- 文件、文件夹和上传选择器均可仅用键盘操作；宽度低于 700 px 时，通过
+  Explorer / Editor / Properties 切换器保证所有面板可达。
 
 ## 项目结构
 
 ```text
 DbcView/
-├── src/DbcView/          Blazor WASM 应用
-│   ├── Components/       工作区宿主与面板
-│   ├── Models/Dbc/       DbcDocument、DbcMessage、DbcSignal
-│   ├── Services/         DbcParser、DbcFileStore
-│   ├── ViewModels/       文件树/编辑器/属性视图模型
-│   └── Pages/            Index (/)、Verification (/verification)
-├── tests/DbcView.Tests/  xUnit + bUnit 测试
-├── samples/              样例 CAN 数据库文件
-└── assets/               README 截图
+├── src/DbcView.Domain/          文档模型、标识与诊断
+├── src/DbcView.Application/     用例、仓储与编解码端口
+├── src/DbcView.Infrastructure/  DBC 解析/序列化、内存仓储
+├── src/DbcView/                 Blazor WASM 表现层与组合根
+│   ├── Components/              工作区宿主与面板
+│   ├── Services/                浏览器上传读取
+│   ├── ViewModels/              文件树/编辑器/属性视图模型
+│   └── Pages/                   Index (/)、Verification (/verification)
+├── tests/DbcView.Tests/         xUnit + bUnit 测试
+├── samples/                     样例 CAN 数据库文件
+└── assets/                      README 截图
 ```
 
 ## 样例数据

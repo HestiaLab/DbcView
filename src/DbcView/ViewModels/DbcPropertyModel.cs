@@ -1,6 +1,6 @@
 using System.Globalization;
-using DbcView.Models.Dbc;
-using DbcView.Services;
+using DbcView.Application;
+using DbcView.Domain;
 
 namespace DbcView.ViewModels;
 
@@ -10,9 +10,6 @@ namespace DbcView.ViewModels;
 /// </summary>
 public sealed class DbcPropertyModel
 {
-    private DbcMessage? _message;
-    private DbcSignal? _signal;
-
     public string? TargetName { get; private set; }
 
     public string? TargetType { get; private set; }
@@ -37,19 +34,20 @@ public sealed class DbcPropertyModel
 
     public event Action? StateChanged;
 
-    public void ShowFile(DbcFileStore.DbcFile file)
+    public void ShowFile(DbcFileEntry file)
     {
+        ArgumentNullException.ThrowIfNull(file);
+
         Reset();
         TargetType = "File";
-        TargetName = file.Name;
-        Name = file.Name;
+        TargetName = file.Id.Key;
+        Name = file.Id.Key;
         Notify();
     }
 
     public void ShowMessage(DbcMessage msg)
     {
         Reset();
-        _message = msg;
         TargetType = "Message";
         TargetName = msg.Name;
         Id = msg.Id.ToString(CultureInfo.InvariantCulture);
@@ -62,7 +60,6 @@ public sealed class DbcPropertyModel
     public void ShowSignal(DbcSignal sig)
     {
         Reset();
-        _signal = sig;
         TargetType = "Signal";
         TargetName = sig.Name;
         Name = sig.Name;
@@ -77,8 +74,6 @@ public sealed class DbcPropertyModel
 
     private void Reset()
     {
-        _message = null;
-        _signal = null;
         TargetName = null;
         TargetType = null;
         Id = null;
