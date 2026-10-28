@@ -1,23 +1,9 @@
 <header class="dbc-view-topbar" data-testid="dbc-view-top-toolbar">
-    <div class="dbc-view-product" aria-label="DbcView">A</div>
-    <nav class="dbc-view-menu" aria-label="Application menu">
-        <button type="button">File</button>
-        <button type="button">Edit</button>
-        <button type="button">View</button>
-        <button type="button">Navigate</button>
-        <button type="button">Code</button>
-        <button type="button">Run</button>
-    </nav>
+    <div class="dbc-view-product" aria-hidden="true">A</div>
+    <span class="dbc-view-title">DbcView</span>
     <div class="dbc-view-history" aria-label="Layout history">
         <button type="button" disabled="@(!CanUndo)" @onclick="OnUndo" aria-label="Undo layout change">↶</button>
         <button type="button" disabled="@(!CanRedo)" @onclick="OnRedo" aria-label="Redo layout change">↷</button>
-    </div>
-    <div class="dbc-view-runner">
-        <span class="dbc-view-branch">feature/dbc-view</span>
-        <button class="dbc-view-target" type="button" aria-label="Run target">DbcView</button>
-        <button class="dbc-view-run" type="button" aria-label="Run DbcView">▶</button>
-        <button type="button" aria-label="Debug DbcView">◆</button>
-        <button type="button" aria-label="Search">⌕</button>
     </div>
 </header>
 

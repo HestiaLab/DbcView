@@ -11,13 +11,21 @@ on:
       - opened
       - reopened
 
+permissions:
+  contents: read
+
 jobs:
   add-to-project:
     name: Add issue or PR to HestiaLab board
-    if: github.actor != 'dependabot[bot]'
+    # Fork PRs do not receive repository secrets, so the PAT-backed board
+    # automation is skipped for them and maintainers add those manually.
+    if: >
+      github.actor != 'dependabot[bot]' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/add-to-project@v2.0.0
+      - uses: actions/add-to-project@5afcf98fcd03f1c2f92c3c83f58ae24323cc57fd # v2.0.0
         with:
           project-url: https://github.com/orgs/HestiaLab/projects/2
           github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}

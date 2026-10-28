@@ -6,11 +6,28 @@
 @using Atlas.Core.Items
 @using Atlas.Core.Layout
 @using Atlas.Core.Operations
-@using DbcView.Models.Dbc
-@using DbcView.Services
+@using DbcView.Application
+@using DbcView.Domain
 @using DbcView.ViewModels
 
-<section class="dbc-view-shell" aria-label="DbcView IDE workspace">
+<section class="dbc-view-shell" data-testid="dbc-view-shell" data-compact-active="@activePanel" aria-label="DbcView IDE workspace">
+    @if (workspace is not null)
+    {
+        <nav class="dbc-compact-nav" aria-label="Workspace panels">
+            <button type="button"
+                    data-testid="dbc-compact-explorer"
+                    aria-pressed="@(activePanel == "explorer" ? "true" : "false")"
+                    @onclick='() => SetActivePanel("explorer")'>Explorer</button>
+            <button type="button"
+                    data-testid="dbc-compact-editor"
+                    aria-pressed="@(activePanel == "editor" ? "true" : "false")"
+                    @onclick='() => SetActivePanel("editor")'>Editor</button>
+            <button type="button"
+                    data-testid="dbc-compact-properties"
+                    aria-pressed="@(activePanel == "properties" ? "true" : "false")"
+                    @onclick='() => SetActivePanel("properties")'>Properties</button>
+        </nav>
+    }
     @if (workspace is null)
     {
         <div class="dbc-view-loading" role="status">Preparing DbcView workspace…</div>
@@ -38,7 +55,7 @@
                 <AtlasContentRoute Kind="@DbcContentKinds.DbcEditor">
                     <ChildContent Context="content">
                         <DbcEditorPanel Content="content"
-                                        Store="dbcStore"
+                                        Workspace="dbcWorkspace"
                                         Tree="dbcTree"
                                         OnMessageSelected="ShowMessageProperties"
                                         OnSignalSelected="ShowSignalProperties" />
@@ -59,15 +76,21 @@
 </section>
 
 @code {
-    private readonly DbcFileStore dbcStore = new();
+    private readonly SemaphoreSlim openGate = new(1, 1);
+    private DbcFileWorkspace dbcWorkspace = null!;
     private DbcTreeModel dbcTree = null!;
     private DbcPropertyModel dbcProperty = null!;
     private IAtlasWorkspace? workspace;
     private string operationStatus = "Ready";
+    private string activePanel = "editor";
     private bool editorPlaceholderConsumed;
+    private int selectionVersion;
 
     [Inject]
     private IAtlasWorkspaceFactory Factory { get; set; } = null!;
+
+    [Inject]
+    private IDbcWorkspaceComposition CompositionFactory { get; set; } = null!;
 
     [Parameter]
     public string WorkspaceName { get; set; } = "dbc-view";
@@ -83,64 +106,121 @@
         workspace = result.Value;
         workspace.Changed += OnWorkspaceChanged;
 
-        dbcTree = new DbcTreeModel(dbcStore);
+        dbcWorkspace = CompositionFactory.CreateWorkspace();
+        dbcTree = new DbcTreeModel(dbcWorkspace);
         dbcProperty = new DbcPropertyModel();
-        dbcTree.StateChanged += OnDbcSelectionChanged;
+        dbcTree.DocumentSelectionChanged += OnDocumentSelectionChanged;
     }
 
-    private async void OnDbcSelectionChanged()
+    private void OnDocumentSelectionChanged()
     {
-        if (workspace is null || dbcTree.SelectedFolder is null || dbcTree.SelectedFile is null)
-        {
-            return;
-        }
+        _ = OpenSelectedDocumentAsync();
+    }
 
-        var file = dbcStore.Find(dbcTree.SelectedFolder, dbcTree.SelectedFile);
-        if (file is null)
+    private async Task OpenSelectedDocumentAsync()
+    {
+        var version = Interlocked.Increment(ref selectionVersion);
+        await openGate.WaitAsync();
+        try
         {
-            return;
-        }
-
-        // The initial pinned "DBC Editor" placeholder is consumed by the first
-        // opened file. Closing it keeps every document tab keyed by its own
-        // ContentReference, so the framework state scope can resolve an
-        // independent editor model per file (FR-01).
-        if (!editorPlaceholderConsumed)
-        {
-            var placeholderId = new DockItemId("dbc-editor");
-            if (workspace.Current.Items.ContainsKey(placeholderId))
+            if (version != Volatile.Read(ref selectionVersion))
             {
-                await workspace.ExecuteAsync(new CloseItemOperation(placeholderId));
+                return;
             }
 
-            editorPlaceholderConsumed = true;
+            if (workspace is null || dbcTree.SelectedDocument is not { } documentId)
+            {
+                return;
+            }
+
+            var file = dbcWorkspace.Find(documentId);
+            if (file is null)
+            {
+                operationStatus = $"File '{documentId.Key}' no longer exists.";
+                return;
+            }
+
+            // The initial pinned "DBC Editor" placeholder is consumed by the
+            // first opened file. Closing it keeps every document tab keyed by
+            // its own ContentReference, so the framework state scope can
+            // resolve an independent editor model per file (FR-01).
+            if (!editorPlaceholderConsumed)
+            {
+                var placeholderId = new DockItemId("dbc-editor");
+                if (workspace.Current.Items.ContainsKey(placeholderId))
+                {
+                    var closeResult = await workspace.ExecuteAsync(new CloseItemOperation(placeholderId));
+                    if (!closeResult.Succeeded)
+                    {
+                        operationStatus =
+                            $"Could not close the editor placeholder ({FormatError(closeResult.Error)}).";
+                        return;
+                    }
+                }
+
+                editorPlaceholderConsumed = true;
+            }
+
+            // A fresh DockItemId per attempt lets ActivateExisting find an
+            // already open tab by its full ContentReference (folder/file)
+            // instead of failing on a duplicate id.
+            var item = new DockItem(
+                new DockItemId($"dbc-editor-{Guid.NewGuid():N}"),
+                DockItemKind.Document,
+                new ContentReference(DbcContentKinds.DbcEditor, documentId.Key),
+                DockItemCapabilityPresets.Document,
+                documentId.Key);
+            var openResult = await workspace.ExecuteAsync(new OpenItemOperation(
+                item,
+                new LayoutNodeId("editor"),
+                ContentDeduplicationMode.ActivateExisting));
+
+            if (version != Volatile.Read(ref selectionVersion))
+            {
+                return;
+            }
+
+            if (!openResult.Succeeded)
+            {
+                operationStatus = $"Could not open '{documentId.Key}' ({FormatError(openResult.Error)}).";
+                return;
+            }
+
+            dbcProperty.ShowFile(file);
+            operationStatus = $"Opened {documentId.Key}";
+            activePanel = "editor";
         }
+        catch (Exception ex)
+        {
+            operationStatus = $"Open failed: {ex.Message}";
+        }
+        finally
+        {
+            openGate.Release();
+            await RefreshAsync();
+        }
+    }
 
-        // A fresh DockItemId per attempt lets ActivateExisting find an already
-        // open tab by ContentReference (file name) instead of failing on a
-        // duplicate id.
-        var item = new DockItem(
-            new DockItemId($"dbc-editor-{Guid.NewGuid():N}"),
-            DockItemKind.Document,
-            new ContentReference(DbcContentKinds.DbcEditor, file.Name),
-            DockItemCapabilityPresets.Document,
-            file.Name);
-        await workspace.ExecuteAsync(new OpenItemOperation(
-            item,
-            new LayoutNodeId("editor"),
-            ContentDeduplicationMode.ActivateExisting));
-
-        dbcProperty.ShowFile(file);
+    private static string FormatError(Atlas.Core.Results.WorkspaceError? error)
+    {
+        return error?.DiagnosticId ?? "unknown error";
     }
 
     private void ShowMessageProperties(DbcMessage message)
     {
         dbcProperty.ShowMessage(message);
+        activePanel = "properties";
     }
 
     private void ShowSignalProperties(DbcSignal signal)
     {
         dbcProperty.ShowSignal(signal);
+        activePanel = "properties";
+    }
+
+    private void SetActivePanel(string panel)
+    {
+        activePanel = panel;
     }
 
     private async Task UndoAsync()
@@ -170,7 +250,19 @@
     private void OnWorkspaceChanged(object? sender, WorkspaceChangedEventArgs args)
     {
         operationStatus = $"Revision {args.ChangeSet.AfterRevision}";
-        _ = InvokeAsync(StateHasChanged);
+        _ = RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        try
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            operationStatus = $"Workspace refresh failed: {ex.Message}";
+        }
     }
 
     public async ValueTask DisposeAsync()
@@ -181,6 +273,9 @@
         }
 
         workspace.Changed -= OnWorkspaceChanged;
+        dbcTree.DocumentSelectionChanged -= OnDocumentSelectionChanged;
+        dbcTree.Dispose();
+        dbcWorkspace.Dispose();
         await workspace.DisposeAsync();
         workspace = null;
     }

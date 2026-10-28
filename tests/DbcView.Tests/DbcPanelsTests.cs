@@ -1,6 +1,6 @@
 #nullable enable
 using DbcView.Components;
-using DbcView.Services;
+using DbcView.Domain;
 using DbcView.ViewModels;
 using Bunit;
 using Microsoft.AspNetCore.Components.Forms;
@@ -9,26 +9,29 @@ using Xunit;
 
 namespace DbcView.Tests;
 
-public sealed class DbcPanelsTests : TestContext
+public sealed class DbcPanelsTests : BunitContext
 {
     private const string ValidDbc =
         "VERSION \"\"\nBU_: XXX\n\nBO_ 100 EmptyMsg: 1 XXX\n";
 
+    private const string InvalidDbc = "this is not a DBC file";
+
     public DbcPanelsTests()
     {
         Services.AddDbcViewServices();
-        JSInterop.Mode = JSRuntimeMode.Loose;
+        JSInterop.Mode = JSRuntimeMode.Strict;
+        AtlasJsInteropSetup.Setup(JSInterop);
     }
 
     [Fact]
-    public void TreePanel_renders_folders_and_files_from_store()
+    public void TreePanel_renders_folders_and_files_from_workspace()
     {
-        var store = new DbcFileStore();
-        store.CreateFolder("can-a");
-        store.AddFile("can-a", "engine.dbc", ValidDbc);
-        var model = new DbcTreeModel(store);
+        using var workspace = TestWorkspace.Create();
+        workspace.CreateFolder("can-a");
+        workspace.AddFile("can-a", "engine.dbc", ValidDbc);
+        var model = new DbcTreeModel(workspace);
 
-        var cut = RenderComponent<DbcTreePanel>(p => p.Add(x => x.Model, model));
+        var cut = Render<DbcTreePanel>(p => p.Add(x => x.Model, model));
 
         Assert.Contains("can-a", cut.Markup, StringComparison.Ordinal);
         Assert.Contains("engine.dbc", cut.Markup, StringComparison.Ordinal);
@@ -36,42 +39,44 @@ public sealed class DbcPanelsTests : TestContext
     }
 
     [Fact]
-    public void TreePanel_upload_adds_file_to_store()
+    public void TreePanel_upload_adds_file_to_workspace()
     {
-        var store = new DbcFileStore();
-        var model = new DbcTreeModel(store);
+        using var workspace = TestWorkspace.Create();
+        var model = new DbcTreeModel(workspace);
 
-        var cut = RenderComponent<DbcTreePanel>(p => p.Add(x => x.Model, model));
+        var cut = Render<DbcTreePanel>(p => p.Add(x => x.Model, model));
 
         // Upload targets the default "DBC" folder created on first upload.
-        var input = cut.FindComponent<Microsoft.AspNetCore.Components.Forms.InputFile>();
+        var input = cut.FindComponent<InputFile>();
         input.UploadFiles(InputFileContent.CreateFromText(ValidDbc, "engine.dbc"));
 
-        Assert.Single(store.Folders);
-        Assert.Single(store.FilesIn("DBC"));
-        Assert.Equal("engine.dbc", store.Find("DBC", "engine.dbc")!.Name);
+        Assert.Single(workspace.Folders);
+        Assert.Single(workspace.FilesIn("DBC"));
+        Assert.Equal(
+            "engine.dbc",
+            workspace.Find(new DbcDocumentId("DBC", "engine.dbc"))!.Id.FileName);
     }
 
     [Fact]
-    public void TreePanel_duplicate_upload_keeps_store_and_shows_message()
+    public void TreePanel_duplicate_upload_keeps_workspace_and_shows_message()
     {
         // Uploading the same file name twice must not escape the event handler
-        // as an unhandled exception: the store keeps the first file and the
+        // as an unhandled exception: the workspace keeps the first file and the
         // panel surfaces a visible message (file-tree duplicate-name rule).
-        var store = new DbcFileStore();
-        var model = new DbcTreeModel(store);
+        using var workspace = TestWorkspace.Create();
+        var model = new DbcTreeModel(workspace);
 
-        var cut = RenderComponent<DbcTreePanel>(p => p.Add(x => x.Model, model));
+        var cut = Render<DbcTreePanel>(p => p.Add(x => x.Model, model));
 
-        var input = cut.FindComponent<Microsoft.AspNetCore.Components.Forms.InputFile>();
+        var input = cut.FindComponent<InputFile>();
         input.UploadFiles(InputFileContent.CreateFromText(ValidDbc, "engine.dbc"));
-        input = cut.FindComponent<Microsoft.AspNetCore.Components.Forms.InputFile>();
+        input = cut.FindComponent<InputFile>();
         input.UploadFiles(InputFileContent.CreateFromText(ValidDbc, "engine.dbc"));
 
         cut.WaitForAssertion(
             () =>
             {
-                Assert.Single(store.FilesIn("DBC"));
+                Assert.Single(workspace.FilesIn("DBC"));
                 Assert.Contains(
                     "already exists",
                     cut.Find("[data-testid='dbc-tree-message']").TextContent,
@@ -80,45 +85,288 @@ public sealed class DbcPanelsTests : TestContext
     }
 
     [Fact]
+    public void TreePanel_rejects_oversized_upload_without_unhandled_exception()
+    {
+        using var workspace = TestWorkspace.Create();
+        var model = new DbcTreeModel(workspace);
+        var cut = Render<DbcTreePanel>(p => p.Add(x => x.Model, model));
+
+        var oversized = new string('x', (4 * 1024 * 1024) + 1);
+        var input = cut.FindComponent<InputFile>();
+        input.UploadFiles(InputFileContent.CreateFromText(oversized, "big.dbc"));
+
+        cut.WaitForAssertion(
+            () =>
+            {
+                var message = cut.Find("[data-testid='dbc-tree-message']");
+                Assert.Equal("alert", message.GetAttribute("role"));
+                Assert.Contains("too large", message.TextContent, StringComparison.Ordinal);
+                Assert.Empty(workspace.Folders);
+            });
+
+        // The failed upload must leave the panel usable for the next upload.
+        input = cut.FindComponent<InputFile>();
+        input.UploadFiles(InputFileContent.CreateFromText(ValidDbc, "ok.dbc"));
+
+        cut.WaitForAssertion(
+            () =>
+            {
+                Assert.Single(workspace.FilesIn("DBC"));
+                Assert.Contains(
+                    "uploaded",
+                    cut.Find("[data-testid='dbc-tree-message']").TextContent,
+                    StringComparison.Ordinal);
+            });
+    }
+
+    [Fact]
+    public void TreePanel_upload_of_invalid_dbc_reports_unvalidated_draft()
+    {
+        using var workspace = TestWorkspace.Create();
+        var model = new DbcTreeModel(workspace);
+        var cut = Render<DbcTreePanel>(p => p.Add(x => x.Model, model));
+
+        var input = cut.FindComponent<InputFile>();
+        input.UploadFiles(InputFileContent.CreateFromText(InvalidDbc, "broken.dbc"));
+
+        cut.WaitForAssertion(
+            () =>
+            {
+                var file = workspace.Find(new DbcDocumentId("DBC", "broken.dbc"));
+                Assert.NotNull(file);
+                Assert.True(file!.HasParseErrors);
+                Assert.Equal(InvalidDbc, file.Content);
+                var message = cut.Find("[data-testid='dbc-tree-message']");
+                Assert.Equal("alert", message.GetAttribute("role"));
+                Assert.Contains("unvalidated draft", message.TextContent, StringComparison.Ordinal);
+            });
+    }
+
+    [Fact]
+    public void TreePanel_reports_too_many_selected_files_without_unhandled_exception()
+    {
+        using var workspace = TestWorkspace.Create();
+        var model = new DbcTreeModel(workspace);
+        var cut = Render<DbcTreePanel>(p => p.Add(x => x.Model, model));
+
+        var files = Enumerable.Range(0, 11)
+            .Select(index => InputFileContent.CreateFromText(ValidDbc, $"f{index}.dbc"))
+            .ToArray();
+        cut.FindComponent<InputFile>().UploadFiles(files);
+
+        cut.WaitForAssertion(
+            () =>
+            {
+                var message = cut.Find("[data-testid='dbc-tree-message']");
+                Assert.Equal("alert", message.GetAttribute("role"));
+                Assert.Contains("could not be read", message.TextContent, StringComparison.Ordinal);
+                Assert.Empty(workspace.Folders);
+            });
+    }
+
+    [Fact]
+    public void TreePanel_upload_goes_to_the_selected_folder()
+    {
+        using var workspace = TestWorkspace.Create();
+        workspace.CreateFolder("A");
+        workspace.CreateFolder("B");
+        var model = new DbcTreeModel(workspace);
+        var cut = Render<DbcTreePanel>(p => p.Add(x => x.Model, model));
+
+        var folderB = cut.FindAll("[data-testid='dbc-folder']")
+            .Single(button => button.TextContent.Contains("B", StringComparison.Ordinal));
+        folderB.Click();
+
+        Assert.Equal("B", model.SelectedFolder);
+        Assert.Contains(
+            "B",
+            cut.Find("[data-testid='dbc-upload-target']").TextContent,
+            StringComparison.Ordinal);
+
+        cut.FindComponent<InputFile>()
+            .UploadFiles(InputFileContent.CreateFromText(ValidDbc, "x.dbc"));
+
+        Assert.NotNull(workspace.Find(new DbcDocumentId("B", "x.dbc")));
+        Assert.Empty(workspace.FilesIn("A"));
+    }
+
+    [Fact]
+    public void TreePanel_new_folder_becomes_the_visible_upload_target()
+    {
+        using var workspace = TestWorkspace.Create();
+        var model = new DbcTreeModel(workspace);
+        var cut = Render<DbcTreePanel>(p => p.Add(x => x.Model, model));
+
+        cut.Find("[data-testid='dbc-new-folder']").Click();
+
+        var folder = model.SelectedFolder;
+        Assert.NotNull(folder);
+        Assert.Contains(folder, cut.Find("[data-testid='dbc-upload-target']").TextContent, StringComparison.Ordinal);
+
+        cut.FindComponent<InputFile>()
+            .UploadFiles(InputFileContent.CreateFromText(ValidDbc, "x.dbc"));
+
+        Assert.NotNull(workspace.Find(new DbcDocumentId(folder!, "x.dbc")));
+    }
+
+    [Fact]
+    public void TreePanel_exposes_native_keyboard_operable_buttons()
+    {
+        using var workspace = TestWorkspace.Create();
+        workspace.AddFile("can-a", "a.dbc", ValidDbc);
+        var model = new DbcTreeModel(workspace);
+        var cut = Render<DbcTreePanel>(p => p.Add(x => x.Model, model));
+
+        var folder = cut.Find("[data-testid='dbc-folder']");
+        Assert.Equal("BUTTON", folder.TagName, StringComparer.OrdinalIgnoreCase);
+        Assert.False(string.IsNullOrWhiteSpace(folder.GetAttribute("aria-pressed")));
+
+        var file = cut.Find("[data-testid='dbc-file']");
+        Assert.Equal("BUTTON", file.TagName, StringComparer.OrdinalIgnoreCase);
+        Assert.Equal("false", file.GetAttribute("aria-pressed"));
+        Assert.Null(file.GetAttribute("tabindex"));
+
+        var upload = cut.Find(".dbc-upload input[type='file']");
+        Assert.Null(upload.GetAttribute("hidden"));
+        Assert.DoesNotContain("display: none", upload.GetAttribute("style") ?? string.Empty, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TreePanel_file_selection_sets_aria_pressed()
+    {
+        using var workspace = TestWorkspace.Create();
+        var entry = workspace.AddFile("can-a", "a.dbc", ValidDbc);
+        var model = new DbcTreeModel(workspace);
+        var cut = Render<DbcTreePanel>(p => p.Add(x => x.Model, model));
+
+        cut.Find("[data-testid='dbc-file']").Click();
+
+        Assert.Equal(entry.Id, model.SelectedDocument);
+        Assert.Equal(
+            "true",
+            cut.Find("[data-testid='dbc-file']").GetAttribute("aria-pressed"));
+    }
+
+    [Fact]
     public void EditorPanel_switches_between_text_and_table_views()
     {
-        var store = new DbcFileStore();
-        var model = new DbcEditorModel(store);
-        var parsed = DbcParser.Parse(ValidDbc);
-        model.Open("can-a", "a.dbc", ValidDbc, parsed);
+        using var workspace = TestWorkspace.Create();
+        var entry = workspace.AddFile("can-a", "a.dbc", ValidDbc);
+        var model = new DbcEditorModel(workspace);
+        model.Open(entry);
 
-        var cut = RenderComponent<DbcEditorPanel>(p => p.Add(x => x.Model, model));
+        var cut = Render<DbcEditorPanel>(p => p.Add(x => x.Model, model));
 
         // Table view is the default; the message row renders.
         Assert.Contains("EmptyMsg", cut.Markup, StringComparison.Ordinal);
 
-        cut.FindAll("button")[0].Click(); // Text
+        cut.Find("[data-testid='dbc-mode-text']").Click();
         Assert.Contains("VERSION", cut.Markup, StringComparison.Ordinal);
 
-        cut.FindAll("button")[1].Click(); // Table
+        cut.Find("[data-testid='dbc-mode-table']").Click();
         Assert.Contains("EmptyMsg", cut.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void EditorPanel_save_updates_store_content()
+    public void EditorPanel_save_updates_workspace_content()
     {
-        var store = new DbcFileStore();
-        store.CreateFolder("can-a");
-        store.AddFile("can-a", "a.dbc", ValidDbc);
-        var model = new DbcEditorModel(store);
-        var file = store.Find("can-a", "a.dbc")!;
-        model.Open("can-a", file.Name, file.Content, file.Parsed);
+        using var workspace = TestWorkspace.Create();
+        var entry = workspace.AddFile("can-a", "a.dbc", ValidDbc);
+        var model = new DbcEditorModel(workspace);
+        model.Open(entry);
 
-        var cut = RenderComponent<DbcEditorPanel>(p => p.Add(x => x.Model, model));
+        var cut = Render<DbcEditorPanel>(p => p.Add(x => x.Model, model));
 
-        cut.FindAll("button")[0].Click(); // Text view
+        cut.Find("[data-testid='dbc-mode-text']").Click();
         var textarea = cut.Find("textarea");
         var edited =
             "VERSION \"\"\nBU_: XXX\n\nBO_ 100 EmptyMsg: 1 XXX\n\nBO_ 200 SecondMsg: 2 XXX\n";
         textarea.Change(edited);
-        cut.FindAll("button")[2].Click(); // Save
+        cut.Find("[data-testid='dbc-save']").Click();
 
-        Assert.Equal(2, store.Find("can-a", "a.dbc")!.Parsed!.Messages.Count);
+        Assert.True(workspace.Find(entry.Id)!.ParseResult.IsValid);
+        Assert.Equal(2, workspace.Find(entry.Id)!.Document.Messages.Count);
+        cut.WaitForAssertion(
+            () => Assert.NotEmpty(cut.FindAll("[data-testid='dbc-save-success']")));
+    }
+
+    [Fact]
+    public void EditorPanel_save_invalid_draft_shows_errors_and_keeps_raw_text()
+    {
+        using var workspace = TestWorkspace.Create();
+        var entry = workspace.AddFile("can-a", "a.dbc", ValidDbc);
+        var model = new DbcEditorModel(workspace);
+        model.Open(entry);
+
+        var cut = Render<DbcEditorPanel>(p => p.Add(x => x.Model, model));
+
+        cut.Find("[data-testid='dbc-mode-text']").Click();
+        cut.Find("textarea").Change(InvalidDbc);
+        cut.Find("[data-testid='dbc-save']").Click();
+
+        cut.WaitForAssertion(
+            () =>
+            {
+                var alert = cut.Find("[data-testid='dbc-parse-errors']");
+                Assert.Equal("alert", alert.GetAttribute("role"));
+                Assert.Contains("unvalidated draft", alert.TextContent, StringComparison.Ordinal);
+                Assert.Contains("DBC001", alert.TextContent, StringComparison.Ordinal);
+                Assert.Equal(InvalidDbc, workspace.Find(entry.Id)!.Content);
+            });
+
+        cut.Find("[data-testid='dbc-mode-table']").Click();
+        Assert.Contains(
+            "Table view is unavailable",
+            cut.Markup,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EditorPanel_shows_parse_errors_for_invalid_file_instead_of_empty_document()
+    {
+        using var workspace = TestWorkspace.Create();
+        var entry = workspace.AddFile("can-a", "bad.dbc", InvalidDbc);
+        var model = new DbcEditorModel(workspace);
+        model.Open(entry);
+
+        var cut = Render<DbcEditorPanel>(p => p.Add(x => x.Model, model));
+
+        Assert.NotEmpty(cut.FindAll("[data-testid='dbc-parse-errors']"));
+        Assert.Contains("DBC001", cut.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("No messages in this DBC file", cut.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EditorPanel_still_reports_valid_empty_file_as_no_messages()
+    {
+        using var workspace = TestWorkspace.Create();
+        var entry = workspace.AddFile("can-a", "empty.dbc", "VERSION \"\"\nBU_: XXX\n");
+        var model = new DbcEditorModel(workspace);
+        model.Open(entry);
+
+        var cut = Render<DbcEditorPanel>(p => p.Add(x => x.Model, model));
+
+        Assert.Contains("No messages in this DBC file.", cut.Markup, StringComparison.Ordinal);
+        Assert.Empty(cut.FindAll("[data-testid='dbc-parse-errors']"));
+    }
+
+    [Fact]
+    public void EditorPanel_shows_bit_range_warnings_without_hiding_the_table()
+    {
+        using var workspace = TestWorkspace.Create();
+        var entry = workspace.AddFile(
+            "can-a",
+            "warning.dbc",
+            "VERSION \"\"\nBU_: XXX\n\nBO_ 100 M: 1 XXX\n" +
+            " SG_ TooWide : 7|2@0+ (1,0) [0|3] \"\" XXX\n");
+        var model = new DbcEditorModel(workspace);
+        model.Open(entry);
+
+        var cut = Render<DbcEditorPanel>(p => p.Add(x => x.Model, model));
+
+        Assert.NotEmpty(cut.FindAll("[data-testid='dbc-parse-warnings']"));
+        Assert.Empty(cut.FindAll("[data-testid='dbc-parse-errors']"));
+        Assert.Contains("TooWide", cut.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -128,7 +376,7 @@ public sealed class DbcPanelsTests : TestContext
         // editor input. Reproduce the full flow through the workspace: upload a
         // file, open it in the editor, type unsaved text, then force a host
         // re-render and assert the textarea keeps the unsaved content.
-        var cut = RenderComponent<DbcViewWorkspace>();
+        var cut = Render<DbcViewWorkspace>();
 
         cut.FindComponent<InputFile>()
             .UploadFiles(InputFileContent.CreateFromText(ValidDbc, "engine.dbc"));
@@ -139,8 +387,8 @@ public sealed class DbcPanelsTests : TestContext
 
         // Switch the editor to text view so the textarea renders.
         cut.WaitForAssertion(
-            () => Assert.Equal(2, cut.FindAll("[data-testid='dbc-editor'] .dbc-action").Count));
-        cut.FindAll("[data-testid='dbc-editor'] .dbc-action")[0].Click();
+            () => Assert.NotEmpty(cut.FindAll("[data-testid='dbc-mode-text']")));
+        cut.Find("[data-testid='dbc-mode-text']").Click();
 
         cut.WaitForAssertion(
             () => Assert.Single(cut.FindAll("[data-testid='dbc-editor'] textarea")));
@@ -159,16 +407,14 @@ public sealed class DbcPanelsTests : TestContext
     [Fact]
     public void PropertyPanel_shows_file_properties()
     {
-        var store = new DbcFileStore();
-        store.CreateFolder("can-a");
-        store.AddFile("can-a", "a.dbc", ValidDbc);
+        using var workspace = TestWorkspace.Create();
+        var entry = workspace.AddFile("can-a", "a.dbc", ValidDbc);
         var model = new DbcPropertyModel();
-        var file = store.Find("can-a", "a.dbc")!;
-        model.ShowFile(file);
+        model.ShowFile(entry);
 
-        var cut = RenderComponent<DbcPropertyPanel>(p => p.Add(x => x.Model, model));
+        var cut = Render<DbcPropertyPanel>(p => p.Add(x => x.Model, model));
 
         Assert.Contains("File", cut.Markup, StringComparison.Ordinal);
-        Assert.Contains("a.dbc", cut.Markup, StringComparison.Ordinal);
+        Assert.Contains("can-a/a.dbc", cut.Markup, StringComparison.Ordinal);
     }
 }

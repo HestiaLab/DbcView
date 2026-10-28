@@ -1,4 +1,5 @@
 @namespace DbcView.Components
+@using DbcView.Services
 @using DbcView.ViewModels
 @using Microsoft.AspNetCore.Components.Forms
 @implements IDisposable
@@ -6,16 +7,22 @@
 <div class="dbc-tree" data-testid="dbc-tree" aria-label="DBC Explorer">
     @if (_uploadMessage is not null)
     {
-        <div class="dbc-tree-message" data-testid="dbc-tree-message" role="status">@_uploadMessage</div>
+        <div class="dbc-tree-message @(_uploadFailed ? "error" : "")"
+             data-testid="dbc-tree-message"
+             role="@(_uploadFailed ? "alert" : "status")">@_uploadMessage</div>
     }
     <div class="dbc-tree-actions">
         <button class="dbc-action" type="button"
+                data-testid="dbc-new-folder"
                 @onclick="OnNewFolder">New folder</button>
         <label class="dbc-upload">
             Upload .dbc
             <InputFile accept=".dbc" OnChange="OnUpload" />
         </label>
     </div>
+    <p class="dbc-upload-target" data-testid="dbc-upload-target">
+        Upload target: <strong>@UploadTarget</strong>
+    </p>
 
     @if (Model.Folders.Count == 0)
     {
@@ -25,16 +32,24 @@
     {
         @foreach (var folder in Model.Folders)
         {
-            <div class="dbc-folder" data-testid="dbc-folder">
-                <div class="dbc-folder-name">📁 @folder.Name</div>
-                @foreach (var file in Model.FilesFor(folder.Name))
+            <div class="dbc-folder">
+                <button type="button"
+                        class="dbc-folder-name @(Model.SelectedFolder == folder ? "selected" : "")"
+                        data-testid="dbc-folder"
+                        aria-pressed="@(Model.SelectedFolder == folder ? "true" : "false")"
+                        @onclick="() => Model.SelectFolder(folder)">
+                    📁 @folder
+                </button>
+                @foreach (var file in Model.FilesFor(folder))
                 {
-                    <div class="dbc-file @(IsSelected(folder.Name, file.Name) ? "selected" : "")"
-                         data-testid="dbc-file"
-                         data-file-name="@file.Name"
-                         @onclick="() => Model.Select(folder.Name, file.Name)">
-                        📄 @file.Name
-                    </div>
+                    <button type="button"
+                            class="dbc-file @(IsSelected(file) ? "selected" : "")"
+                            data-testid="dbc-file"
+                            data-file-key="@file.Id.Key"
+                            aria-pressed="@(IsSelected(file) ? "true" : "false")"
+                            @onclick="() => Model.Select(file.Id)">
+                        📄 @file.Id.FileName
+                    </button>
                 }
             </div>
         }
@@ -42,10 +57,18 @@
 </div>
 
 @code {
+    private const long MaxUploadBytes = 4 * 1024 * 1024;
+
     private string? _uploadMessage;
+    private bool _uploadFailed;
 
     [Parameter, EditorRequired]
     public DbcTreeModel Model { get; set; } = null!;
+
+    private string UploadTarget =>
+        Model.SelectedFolder
+        ?? Model.Folders.FirstOrDefault()
+        ?? "DBC";
 
     protected override void OnInitialized()
     {
@@ -57,9 +80,9 @@
         _ = InvokeAsync(StateHasChanged);
     }
 
-    private bool IsSelected(string folder, string file)
+    private bool IsSelected(DbcFileEntry file)
     {
-        return Model.SelectedFolder == folder && Model.SelectedFile == file;
+        return Model.SelectedDocument == file.Id;
     }
 
     private void OnNewFolder()
@@ -69,31 +92,71 @@
 
     private async Task OnUpload(InputFileChangeEventArgs e)
     {
-        var folder = Model.Folders.Count > 0 ? Model.Folders[0].Name : "DBC";
-        if (Model.Folders.All(f => f.Name != folder))
+        var folder = UploadTarget;
+
+        IReadOnlyList<IBrowserFile> files;
+        try
         {
-            Model.NewFolder(folder);
+            files = e.GetMultipleFiles();
+        }
+        catch (Exception ex)
+        {
+            _uploadMessage = $"The file selection could not be read: {ex.Message}";
+            _uploadFailed = true;
+            await InvokeAsync(StateHasChanged);
+            return;
         }
 
-        foreach (var file in e.GetMultipleFiles())
+        var messages = new List<string>();
+        var failed = false;
+        foreach (var file in files)
         {
-            await using var stream = file.OpenReadStream(maxAllowedSize: 4 * 1024 * 1024);
-            using var reader = new StreamReader(stream);
-            var content = await reader.ReadToEndAsync();
             try
             {
-                Model.Upload(folder, file.Name, content);
-                _uploadMessage = null;
+                var read = await DbcUploadReader.ReadAsync(file, MaxUploadBytes);
+                if (!read.Success)
+                {
+                    messages.Add($"{file.Name} {read.Error}");
+                    failed = true;
+                    continue;
+                }
+
+                if (!Model.Folders.Contains(folder, StringComparer.Ordinal))
+                {
+                    Model.NewFolder(folder);
+                }
+
+                var result = Model.Upload(new DbcDocumentId(folder, file.Name), read.Content);
+                if (result.HasParseErrors)
+                {
+                    messages.Add(
+                        $"{file.Name} uploaded as an unvalidated draft with {result.ParseResult.ErrorCount} DBC error(s).");
+                    failed = true;
+                }
+                else
+                {
+                    messages.Add($"{file.Name} uploaded.");
+                }
             }
-            catch (InvalidOperationException)
+            catch (DbcFileConflictException)
             {
                 // The file tree forbids duplicate names; surface a visible
                 // message instead of letting the exception escape the event
                 // handler and crash the renderer.
-                _uploadMessage = $"{file.Name} already exists in '{folder}'.";
+                messages.Add($"{file.Name} already exists in '{folder}'.");
+                failed = true;
+            }
+            catch (Exception ex)
+            {
+                messages.Add($"{file.Name} could not be processed: {ex.Message}");
+                failed = true;
             }
         }
 
+        _uploadMessage = messages.Count == 0
+            ? "No files were selected."
+            : string.Join(" ", messages);
+        _uploadFailed = failed;
         await InvokeAsync(StateHasChanged);
     }
 

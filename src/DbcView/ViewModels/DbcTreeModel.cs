@@ -1,56 +1,83 @@
-using DbcView.Services;
+using DbcView.Application;
+using DbcView.Domain;
 
 namespace DbcView.ViewModels;
 
 /// <summary>
 /// PanelModel for the DBC Explorer tree. Owns folder/file selection and
-/// exposes upload/create operations backed by the shared
-/// <see cref="DbcFileStore"/>. Raises <see cref="StateChanged"/> when the
-/// selection or the underlying store changes.
+/// exposes upload/create operations backed by the application workspace.
+/// Raises <see cref="StateChanged"/> when the selection or the underlying
+/// workspace changes.
 /// </summary>
-public sealed class DbcTreeModel
+public sealed class DbcTreeModel : IDisposable
 {
-    private readonly DbcFileStore _store;
-    private string? _selectedFolder;
-    private string? _selectedFile;
+    private readonly DbcFileWorkspace _workspace;
+    private bool _disposed;
 
-    public DbcTreeModel(DbcFileStore store)
+    public DbcTreeModel(DbcFileWorkspace workspace)
     {
-        _store = store;
-        _store.Changed += OnStoreChanged;
+        _workspace = workspace ?? throw new ArgumentNullException(nameof(workspace));
+        _workspace.Changed += OnWorkspaceChanged;
     }
 
-    public IReadOnlyList<DbcFileStore.DbcFolder> Folders => _store.Folders;
+    public IReadOnlyList<string> Folders => _workspace.Folders;
 
-    public string? SelectedFolder => _selectedFolder;
+    /// <summary>Folder that receives the next upload.</summary>
+    public string? SelectedFolder { get; private set; }
 
-    public string? SelectedFile => _selectedFile;
+    /// <summary>Fully-qualified document selection (folder + file name).</summary>
+    public DbcDocumentId? SelectedDocument { get; private set; }
 
     public event Action? StateChanged;
 
-    public void Select(string? folder, string? file)
+    /// <summary>
+    /// Raised only when the user selects a document. Folder selection and
+    /// workspace mutations (upload/save) must not re-open or re-activate tabs.
+    /// </summary>
+    public event Action? DocumentSelectionChanged;
+
+    public void SelectFolder(string? folder)
     {
-        _selectedFolder = folder;
-        _selectedFile = file;
+        SelectedFolder = folder;
         StateChanged?.Invoke();
+    }
+
+    public void Select(DbcDocumentId document)
+    {
+        SelectedDocument = document;
+        SelectedFolder = document.Folder;
+        StateChanged?.Invoke();
+        DocumentSelectionChanged?.Invoke();
     }
 
     public void NewFolder(string name)
     {
-        _store.CreateFolder(name);
+        _workspace.CreateFolder(name);
+        SelectedFolder = name;
     }
 
-    public void Upload(string folder, string fileName, string content)
+    public DbcFileEntry Upload(DbcDocumentId id, string content)
     {
-        _store.AddFile(folder, fileName, content);
+        return _workspace.Upload(id, content);
     }
 
-    public IReadOnlyList<DbcFileStore.DbcFile> FilesFor(string folder)
+    public IReadOnlyList<DbcFileEntry> FilesFor(string folder)
     {
-        return _store.FilesIn(folder);
+        return _workspace.FilesIn(folder);
     }
 
-    private void OnStoreChanged()
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _workspace.Changed -= OnWorkspaceChanged;
+        _disposed = true;
+    }
+
+    private void OnWorkspaceChanged()
     {
         StateChanged?.Invoke();
     }

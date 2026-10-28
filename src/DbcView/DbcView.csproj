@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>DbcView</RootNamespace>
     <AssemblyName>DbcView</AssemblyName>
     <IsPackable>false</IsPackable>
@@ -9,5 +9,10 @@
     <PackageReference Include="Atlas.Blazor" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DbcView.Domain\DbcView.Domain.csproj" />
+    <ProjectReference Include="..\DbcView.Application\DbcView.Application.csproj" />
+    <ProjectReference Include="..\DbcView.Infrastructure\DbcView.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

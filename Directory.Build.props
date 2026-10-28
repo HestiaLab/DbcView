@@ -1,11 +1,11 @@
 <Project>
   <PropertyGroup>
-    <LangVersion>10.0</LangVersion>
+    <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <Deterministic>true</Deterministic>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
-    <AnalysisLevel>6.0</AnalysisLevel>
+    <AnalysisLevel>10.0</AnalysisLevel>
   </PropertyGroup>
 </Project>

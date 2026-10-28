@@ -7,33 +7,72 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  build:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
-          dotnet-version: 6.0.x
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore DbcView.sln
+
+      - name: Build
+        run: dotnet build DbcView.sln --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test DbcView.sln --no-build --no-restore --configuration Release --verbosity normal
+
+      - name: Verify formatting
+        run: dotnet format DbcView.sln --verify-no-changes --no-restore --verbosity minimal
+
+  build:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          dotnet-version: 10.0.x
 
       - name: Publish
         run: dotnet publish src/DbcView -c Release -o publish
 
       # Project site (https://HestiaLab.github.io/DbcView/) needs the base
-      # href rewritten. The BaseHref MSBuild property is not available in
-      # current SDKs, so replace it in the published index.html.
+      # href rewritten.
       - name: Set base href for project site
         run: sed -i 's|<base href="/"|<base href="/DbcView/"|' publish/wwwroot/index.html
+
+      - name: Assert published shell
+        shell: bash
+        run: |
+          set -euo pipefail
+          index="publish/wwwroot/index.html"
+          if ! grep -qF '<base href="/DbcView/"' "$index"; then
+            echo "::error::base href rewrite failed; expected /DbcView/ in $index"
+            exit 1
+          fi
+          if ! grep -qF '_framework/blazor.webassembly.js' "$index"; then
+            echo "::error::published index.html does not reference the Blazor WebAssembly boot script"
+            exit 1
+          fi
+          if [ ! -f "publish/wwwroot/_content/Atlas.Blazor/atlas-v2/atlas.css" ]; then
+            echo "::error::Atlas static asset is missing from the published output"
+            exit 1
+          fi
 
       - name: Add SPA 404 fallback
         run: cp publish/wwwroot/index.html publish/wwwroot/404.html
@@ -42,17 +81,20 @@ jobs:
         run: touch publish/wwwroot/.nojekyll
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: publish/wwwroot
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

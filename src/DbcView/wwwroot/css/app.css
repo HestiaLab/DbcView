@@ -5,7 +5,12 @@
    dark variant, so the demo follows the OS/browser theme automatically.
    Atlas chrome that the variable contract covers is themed through
    --atlas-* overrides (which reference --demo-*); effect-layer styling
-   (borders, radii, shadows) stays in consumer selectors. */
+   (borders, radii, shadows) stays in consumer selectors.
+
+   Contrast contract (WCAG AA):
+   - normal text >= 4.5:1, large text >= 3:1, UI indicators >= 3:1;
+   - every foreground/background token pair below is chosen against its
+     actual surface, including selection, table header and alerts. */
 
 :root {
     color-scheme: light dark;
@@ -16,15 +21,24 @@
     --demo-surface: #fffdf7;
     --demo-chrome: #ffd93d;
     --demo-chrome-ink: #3d3a35;
-    --demo-accent: #e63946;
-    --demo-accent-ink: #fff;
-    --demo-blue: #4d96ff;
+    --demo-accent: #c62f3c;
+    --demo-accent-ink: #ffffff;
+    --demo-blue: #2f6fd0;
+    --demo-blue-ink: #ffffff;
     --demo-green: #6bcb77;
     --demo-ink: #3d3a35;
     --demo-muted: #8a5a2b;
     --demo-border: #3d3a35;
     --demo-hover: #ffb3b3;
-    --demo-selection: #6bcb77;
+    --demo-selection: #2e7d4f;
+    --demo-selection-ink: #ffffff;
+    --demo-ok-ink: #1f6b3a;
+    --demo-error-bg: #fde2e2;
+    --demo-error-ink: #7a1018;
+    --demo-warning-bg: #fff3c4;
+    --demo-warning-ink: #5a3b00;
+    --demo-success-bg: #d9f2e3;
+    --demo-success-ink: #14532d;
     background: var(--demo-bg);
     color: var(--demo-ink);
 }
@@ -38,13 +52,22 @@
         --demo-chrome-ink: #221c10;
         --demo-accent: #ff6b6b;
         --demo-accent-ink: #2b0a0a;
-        --demo-blue: #5b9bff;
+        --demo-blue: #2f6fd0;
+        --demo-blue-ink: #ffffff;
         --demo-green: #6ddb8a;
         --demo-ink: #f0e8d8;
         --demo-muted: #b89a6a;
         --demo-border: #0f0d0a;
         --demo-hover: #4a4034;
         --demo-selection: #2e7d4f;
+        --demo-selection-ink: #ffffff;
+        --demo-ok-ink: #0f3d16;
+        --demo-error-bg: #4a151a;
+        --demo-error-ink: #ffd7da;
+        --demo-warning-bg: #4a3a10;
+        --demo-warning-ink: #ffe9a8;
+        --demo-success-bg: #123524;
+        --demo-success-ink: #b9f2cf;
         background: var(--demo-bg);
         color: var(--demo-ink);
     }
@@ -64,6 +87,13 @@ body,
 body { min-width: 20rem; }
 button { font: inherit; }
 #blazor-error-ui { display: none; }
+
+:focus-visible {
+    /* currentColor is already contrast-checked against each control's surface,
+       so the ring stays >= 3:1 on the red topbar, green selection and chrome. */
+    outline: 3px solid currentColor;
+    outline-offset: 2px;
+}
 
 .dbc-view-loading {
     min-height: 100%;
@@ -162,7 +192,7 @@ button { font: inherit; }
     white-space: nowrap;
 }
 
-.dbc-view-shell .atlas-v2-tab-strip [role="tab"][aria-selected="true"] {
+.dbc-view-shell .atlas-v2-tab-strip [role="tab"][aria-selected] {
     border-color: var(--demo-border);
     border-bottom-color: var(--atlas-tab-bg-active);
     box-shadow: 0 0.25rem 0 var(--demo-accent);
@@ -194,7 +224,7 @@ button { font: inherit; }
 }
 
 .dbc-view-shell .atlas-v2-toolbar button:hover,
-.dbc-view-shell .atlas-v2-toolbar button[aria-selected="true"] {
+.dbc-view-shell .atlas-v2-toolbar button[aria-selected] {
     background: var(--demo-surface);
     color: var(--demo-accent);
     box-shadow: 0 0.15rem 0 var(--demo-border);
@@ -202,12 +232,13 @@ button { font: inherit; }
 
 /* ============================================================
    Demo chrome (topbar / statusbar) — demo-owned, no Atlas tokens.
+   Only real controls and real workspace state are shown.
    ============================================================ */
 .dbc-view-topbar {
     min-height: 2.65rem;
     display: flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.5rem;
     padding: 0 0.6rem;
     background: var(--demo-accent);
     border-bottom: 3px solid var(--demo-border);
@@ -228,16 +259,21 @@ button { font: inherit; }
     box-shadow: 0 0.15rem 0 color-mix(in srgb, var(--demo-ink) 50%, transparent);
 }
 
-.dbc-view-menu,
-.dbc-view-runner,
+.dbc-view-title {
+    flex: 1 1 auto;
+    overflow: hidden;
+    color: var(--demo-accent-ink);
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .dbc-view-history {
     display: flex;
     align-items: center;
     gap: 0.12rem;
 }
 
-.dbc-view-menu button,
-.dbc-view-runner button,
 .dbc-view-history button {
     border: 2px solid transparent;
     border-radius: 0.5rem;
@@ -247,29 +283,20 @@ button { font: inherit; }
     font-weight: 700;
 }
 
-.dbc-view-menu button:hover,
-.dbc-view-runner button:hover,
 .dbc-view-history button:not(:disabled):hover {
-    background: color-mix(in srgb, var(--demo-accent) 80%, black);
+    background: color-mix(in srgb, var(--demo-accent) 78%, black);
     border-color: var(--demo-border);
 }
-.dbc-view-history button:disabled { color: color-mix(in srgb, var(--demo-accent-ink) 55%, transparent); }
-.dbc-view-runner { margin-inline-start: auto; }
-.dbc-view-branch { color: color-mix(in srgb, var(--demo-accent-ink) 75%, transparent); margin-inline-end: 0.35rem; }
-.dbc-view-target {
-    min-width: 8.5rem;
-    text-align: start;
-    background: var(--demo-surface) !important;
-    border-color: var(--demo-border) !important;
-    color: var(--demo-ink) !important;
+
+.dbc-view-history button:disabled {
+    color: color-mix(in srgb, var(--demo-accent-ink) 60%, transparent);
 }
-.dbc-view-run { color: var(--demo-chrome) !important; }
 
 .dbc-view-statusbar {
     min-height: 1.55rem;
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
     padding: 0 0.65rem;
     background: var(--demo-chrome);
     border-top: 2px solid var(--demo-border);
@@ -278,79 +305,7 @@ button { font: inherit; }
     font-weight: 600;
 }
 
-.dbc-view-status-spacer { flex: 1; }
-.dbc-view-ok, .dbc-view-success { color: var(--demo-green); }
-.dbc-view-muted { color: var(--demo-muted); }
-
-/* ============================================================
-   Demo content panels — demo-owned styles.
-   ============================================================ */
-.dbc-view-tool,
-.dbc-view-editor,
-.dbc-view-terminal {
-    height: 100%;
-    box-sizing: border-box;
-    overflow: auto;
-}
-
-.dbc-view-tool-actions {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.45rem 0.65rem;
-}
-.dbc-view-tool-actions button { border: 0; background: transparent; color: var(--demo-muted); }
-
-.dbc-view-tree,
-.dbc-view-list {
-    list-style: none;
-    margin: 0;
-    padding: 0.25rem 0;
-    font-size: 0.82rem;
-}
-.dbc-view-tree li, .dbc-view-list li { padding: 0.24rem 0.55rem; white-space: nowrap; }
-.dbc-view-tree li > span { display: inline-block; width: 1rem; color: var(--demo-muted); }
-.level-1 { padding-inline-start: 1.25rem !important; }
-.level-2 { padding-inline-start: 2rem !important; }
-.level-3 { padding-inline-start: 2.8rem !important; }
-.dbc-view-tree .active { background: var(--demo-selection); color: #fff; border-radius: 0.4rem; }
-
-.dbc-view-service {
-    display: flex;
-    align-items: start;
-    gap: 0.55rem;
-    padding: 0.65rem;
-    border-bottom: 1px solid var(--demo-border);
-}
-.dbc-view-service > span { width: 0.55rem; height: 0.55rem; margin-top: 0.28rem; border-radius: 50%; background: var(--demo-muted); }
-.dbc-view-service > span.running { background: var(--demo-green); box-shadow: 0 0 0.5rem color-mix(in srgb, var(--demo-green) 40%, transparent); }
-.dbc-view-service div { display: grid; gap: 0.2rem; }
-.dbc-view-service small { color: var(--demo-muted); }
-
-.dbc-view-breadcrumbs {
-    padding: 0.45rem 0.9rem;
-    border-bottom: 1px solid var(--demo-border);
-    color: var(--demo-muted);
-    font-size: 0.78rem;
-}
-.dbc-view-breadcrumbs span { padding: 0 0.35rem; color: var(--demo-muted); }
-.dbc-view-code { display: grid; grid-template-columns: auto minmax(0, 1fr); padding: 0.75rem 0; font: 0.86rem/1.65 "Cascadia Code", Consolas, monospace; }
-.dbc-view-code .gutter { padding: 0 0.85rem; text-align: end; color: var(--demo-muted); user-select: none; }
-.dbc-view-code pre { margin: 0; overflow: visible; }
-.keyword { color: var(--demo-accent); }
-.string { color: var(--demo-green); }
-.tag { color: var(--demo-blue); }
-
-.dbc-view-markdown .markdown-body { max-width: 48rem; padding: 1.25rem 2rem 3rem; }
-.dbc-view-markdown h1, .dbc-view-markdown h2 { color: var(--demo-ink); font-weight: 800; }
-.dbc-view-markdown h1 { padding-bottom: 0.5rem; border-bottom: 2px solid var(--demo-chrome); }
-.dbc-view-markdown pre { padding: 0.8rem 1rem; border-radius: 0.5rem; background: var(--demo-surface); border: 2px solid var(--demo-border); }
-
-.dbc-view-terminal { padding: 0.65rem 0.85rem; background: var(--demo-surface); font: 0.82rem/1.65 "Cascadia Code", Consolas, monospace; }
-.dbc-view-terminal .prompt { color: var(--demo-accent); font-weight: 700; }
-.dbc-view-terminal .caret { display: inline-block; width: 0.5rem; height: 1rem; background: var(--demo-ink); vertical-align: text-bottom; }
-.dbc-view-empty-icon { padding-top: 1.5rem; color: var(--demo-green); font-size: 2rem; text-align: center; }
-.dbc-view-tool > p, .dbc-view-tool > small { display: block; text-align: center; }
+.dbc-view-ok { color: var(--demo-ok-ink); }
 
 .dbc-view-verification {
     width: 100vw;
@@ -368,20 +323,6 @@ button { font: inherit; }
     overflow: hidden;
 }
 
-@media (max-width: 900px) {
-    .dbc-view-menu button:nth-last-child(-n + 3),
-    .dbc-view-branch,
-    .dbc-view-target { display: none; }
-}
-
-@media (max-width: 620px) {
-    .dbc-view-menu { display: none; }
-    .dbc-view-topbar { gap: 0.15rem; padding-inline: 0.35rem; }
-    .dbc-view-statusbar span:nth-last-child(-n + 3) { display: none; }
-    .dbc-view-markdown .markdown-body { padding-inline: 1rem; }
-    .dbc-view-verification { grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); }
-}
-
 /* ============================================================
    DBC Explorer / editor / properties panels — demo content skin.
    ============================================================ */
@@ -397,7 +338,14 @@ button { font: inherit; }
 }
 
 .dbc-tree { padding: 0.5rem 0; }
-.dbc-tree-actions { display: flex; gap: 0.4rem; padding: 0 0.6rem 0.5rem; align-items: center; }
+.dbc-tree-actions { display: flex; gap: 0.4rem; padding: 0 0.6rem 0.3rem; align-items: center; }
+.dbc-upload-target {
+    margin: 0;
+    padding: 0 0.6rem 0.45rem;
+    color: var(--demo-muted);
+    font-size: 0.76rem;
+}
+
 .dbc-action {
     background: var(--demo-chrome);
     border: 2px solid var(--demo-border);
@@ -409,21 +357,99 @@ button { font: inherit; }
     cursor: pointer;
     box-shadow: 0 0.15rem 0 color-mix(in srgb, var(--demo-ink) 40%, transparent);
 }
-.dbc-action:hover { background: var(--demo-blue); color: #fff; }
-.dbc-action.primary { background: var(--demo-green); }
+
+.dbc-action:hover { background: var(--demo-blue); color: var(--demo-blue-ink); }
+.dbc-action.primary { background: var(--demo-green); color: var(--demo-chrome-ink); }
 .dbc-action.active { background: var(--demo-accent); color: var(--demo-accent-ink); }
-.dbc-upload { display: inline-flex; align-items: center; color: var(--demo-muted); cursor: pointer; }
-.dbc-upload input[type="file"] { display: none; }
+.dbc-action.active:hover { background: color-mix(in srgb, var(--demo-accent) 82%, black); color: var(--demo-accent-ink); }
+
+.dbc-upload {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    border-radius: 0.4rem;
+    color: var(--demo-muted);
+    cursor: pointer;
+}
+
+/* Visually hidden but still focusable, so keyboard users can open the
+   native file picker. The label shows the focus ring via :focus-within. */
+.dbc-upload input[type="file"] {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    overflow: hidden;
+}
+
+.dbc-upload:focus-within {
+    outline: 3px solid currentColor;
+    outline-offset: 2px;
+}
+
 .dbc-empty { padding: 0.75rem 0.9rem; color: var(--demo-muted); margin: 0; }
 .dbc-folder { margin-top: 0.15rem; }
-.dbc-folder-name { padding: 0.3rem 0.6rem; font-weight: 700; color: var(--demo-ink); }
-.dbc-file { padding: 0.25rem 0.6rem 0.25rem 1.4rem; cursor: pointer; border-left: 3px solid transparent; }
-.dbc-file:hover { background: var(--demo-hover); }
-.dbc-file.selected { background: var(--demo-selection); color: #fff; border-left-color: var(--demo-border); border-radius: 0 0.4rem 0.4rem 0; }
 
-.dbc-editor-toolbar { display: flex; gap: 0.4rem; padding: 0.5rem 0.6rem; border-bottom: 2px solid var(--demo-border); align-items: center; background: var(--demo-chrome); }
-.dbc-editor-file { flex: 1; color: var(--demo-chrome-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.dbc-folder-name,
+.dbc-file {
+    display: block;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--demo-ink);
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+}
+
+.dbc-folder-name {
+    padding: 0.3rem 0.6rem;
+    font-weight: 700;
+    border-radius: 0.4rem;
+}
+
+.dbc-folder-name:hover { background: var(--demo-hover); }
+.dbc-folder-name.selected { background: var(--demo-hover); box-shadow: inset 0.2rem 0 0 var(--demo-accent); }
+
+.dbc-file {
+    padding: 0.25rem 0.6rem 0.25rem 1.4rem;
+    border-left: 3px solid transparent;
+}
+
+.dbc-file:hover { background: var(--demo-hover); }
+
+.dbc-file.selected {
+    background: var(--demo-selection);
+    color: var(--demo-selection-ink);
+    border-left-color: var(--demo-border);
+    border-radius: 0 0.4rem 0.4rem 0;
+}
+
+.dbc-file.selected:hover { background: var(--demo-selection); }
+
+.dbc-editor-toolbar {
+    display: flex;
+    gap: 0.4rem;
+    padding: 0.5rem 0.6rem;
+    border-bottom: 2px solid var(--demo-border);
+    align-items: center;
+    background: var(--demo-chrome);
+}
+
+.dbc-editor-file {
+    flex: 1;
+    color: var(--demo-chrome-ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 700;
+}
+
 .dbc-editor-text { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
 .dbc-textarea {
     flex: 1;
     min-height: 0;
@@ -435,19 +461,182 @@ button { font: inherit; }
     font: 0.8rem/1.6 "Cascadia Code", Consolas, monospace;
     padding: 0.6rem 0.8rem;
 }
+
 .dbc-editor-actions { padding: 0.45rem 0.6rem; border-top: 2px solid var(--demo-border); }
 .dbc-editor-table { flex: 1; overflow: auto; min-height: 0; }
+
 .dbc-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-.dbc-table th, .dbc-table td { padding: 0.3rem 0.6rem; text-align: left; border-bottom: 1px solid var(--demo-border); white-space: nowrap; }
-.dbc-table th { position: sticky; top: 0; background: var(--demo-blue); color: #fff; font-weight: 700; }
+
+.dbc-table th,
+.dbc-table td {
+    padding: 0.3rem 0.6rem;
+    text-align: left;
+    border-bottom: 1px solid var(--demo-border);
+    white-space: nowrap;
+}
+
+.dbc-table th {
+    position: sticky;
+    top: 0;
+    background: var(--demo-blue);
+    color: var(--demo-blue-ink);
+    font-weight: 700;
+}
+
 .dbc-signal-row td { color: var(--demo-muted); }
-.dbc-link { background: none; border: 0; color: var(--demo-accent); cursor: pointer; padding: 0; font: inherit; text-align: left; font-weight: 700; }
+
+.dbc-link {
+    background: none;
+    border: 0;
+    color: var(--demo-accent);
+    cursor: pointer;
+    padding: 0;
+    font: inherit;
+    text-align: left;
+    font-weight: 700;
+}
+
 .dbc-link:hover { text-decoration: underline; }
 
 .dbc-property { padding: 0.6rem 0.8rem; gap: 0.6rem; }
-.dbc-property-header { display: flex; gap: 0.5rem; align-items: baseline; border-bottom: 2px solid var(--demo-border); padding-bottom: 0.5rem; }
-.dbc-property-type { color: var(--demo-accent); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 800; }
+
+.dbc-property-header {
+    display: flex;
+    gap: 0.5rem;
+    align-items: baseline;
+    border-bottom: 2px solid var(--demo-border);
+    padding-bottom: 0.5rem;
+}
+
+.dbc-property-type {
+    color: var(--demo-accent);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 800;
+}
+
 .dbc-property-name { font-weight: 800; color: var(--demo-ink); }
 .dbc-property-list { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 0.8rem; }
 .dbc-property-list dt { color: var(--demo-muted); }
 .dbc-property-list dd { margin: 0; color: var(--demo-ink); }
+
+/* ============================================================
+   Diagnostics and upload feedback.
+   ============================================================ */
+.dbc-tree-message,
+.dbc-alert {
+    margin: 0.3rem 0.6rem;
+    padding: 0.45rem 0.6rem;
+    border: 2px solid currentColor;
+    border-radius: 0.5rem;
+    font-size: 0.78rem;
+    background: var(--demo-success-bg);
+    color: var(--demo-success-ink);
+}
+
+.dbc-tree-message.error,
+.dbc-alert.error {
+    background: var(--demo-error-bg);
+    color: var(--demo-error-ink);
+}
+
+.dbc-alert.warning {
+    background: var(--demo-warning-bg);
+    color: var(--demo-warning-ink);
+}
+
+.dbc-alert.success {
+    background: var(--demo-success-bg);
+    color: var(--demo-success-ink);
+}
+
+.dbc-alert-title { margin: 0; font-weight: 800; }
+
+.dbc-diagnostics {
+    margin: 0.3rem 0 0;
+    padding-inline-start: 1.1rem;
+    display: grid;
+    gap: 0.15rem;
+}
+
+.dbc-diagnostic-code { font-weight: 800; margin-inline-end: 0.3rem; }
+
+/* ============================================================
+   Compact layout (<= 700px): a single reachable panel plus an
+   explicit Explorer / Editor / Properties switcher. The wide
+   three-column layout is replaced, not hidden behind overflow.
+   ============================================================ */
+.dbc-compact-nav {
+    display: none;
+    gap: 0.25rem;
+    padding: 0.3rem 0.4rem;
+    background: var(--demo-chrome);
+    border-bottom: 2px solid var(--demo-border);
+}
+
+.dbc-compact-nav button {
+    flex: 1 1 0;
+    min-width: 0;
+    border: 2px solid var(--demo-border);
+    border-radius: 0.4rem;
+    padding: 0.3rem 0.2rem;
+    background: var(--demo-surface);
+    color: var(--demo-ink);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.dbc-compact-nav button[aria-pressed="true"] {
+    background: var(--demo-accent);
+    color: var(--demo-accent-ink);
+}
+
+@media (max-width: 700px) {
+    .dbc-view-shell {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .dbc-compact-nav { display: flex; }
+
+    .dbc-view-shell > .atlas-v2-workspace {
+        flex: 1 1 auto;
+        height: auto;
+        min-height: 0;
+    }
+
+    .dbc-view-shell .atlas-v2-work-area {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dbc-view-shell .atlas-v2-toolbar { display: none; }
+    .dbc-view-shell .atlas-v2-split { display: contents; }
+    .dbc-view-shell .atlas-v2-splitter { display: none; }
+    .dbc-view-shell .atlas-v2-group { display: none; visibility: visible; }
+
+    .dbc-view-shell .atlas-v2-split[data-atlas-split-hidden],
+    .dbc-view-shell .atlas-v2-group-collapsed {
+        visibility: visible;
+    }
+
+    .dbc-view-shell[data-compact-active="explorer"] [data-atlas-group-id="left-upper"],
+    .dbc-view-shell[data-compact-active="editor"] [data-atlas-group-id="editor"],
+    .dbc-view-shell[data-compact-active="properties"] [data-atlas-group-id="right-upper"] {
+        display: grid;
+    }
+
+    .dbc-view-verification {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: 100vh 100vh;
+        overflow-y: auto;
+    }
+
+    .dbc-view-topbar { gap: 0.25rem; padding-inline: 0.35rem; }
+    .dbc-view-statusbar { padding-inline: 0.4rem; }
+}
+
+@media (max-width: 380px) {
+    .dbc-view-title { font-size: 0.9rem; }
+    .dbc-compact-nav button { font-size: 0.72rem; }
+}
