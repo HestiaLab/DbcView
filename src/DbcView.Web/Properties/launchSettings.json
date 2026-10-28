@@ -1,6 +1,6 @@
 {
   "profiles": {
-    "DbcView": {
+    "DbcView.Web": {
       "commandName": "Project",
       "launchBrowser": true,
       "environmentVariables": {

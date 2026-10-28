@@ -40,7 +40,7 @@ Requires the .NET 10 SDK (the repository pins it in `global.json`).
 dotnet restore DbcView.sln --configfile NuGet.Config
 dotnet build DbcView.sln --no-restore
 dotnet test DbcView.sln --no-build --no-restore
-dotnet run --project src/DbcView/DbcView.csproj --no-restore
+dotnet run --project src/DbcView.Web/DbcView.Web.csproj --no-restore
 ```
 
 Open the URL printed by `dotnet run`.
@@ -73,7 +73,7 @@ DbcView/
 ├── src/DbcView.Domain/          document model, identity, diagnostics
 ├── src/DbcView.Application/     use cases and repository/codec ports
 ├── src/DbcView.Infrastructure/  DBC parser/serializer, in-memory repository
-├── src/DbcView/                 Blazor WASM presentation + composition root
+├── src/DbcView.Web/             Blazor WASM presentation + composition root
 │   ├── Components/              workspace host + panels
 │   ├── Services/                browser upload reader
 │   ├── ViewModels/              tree / editor / property models

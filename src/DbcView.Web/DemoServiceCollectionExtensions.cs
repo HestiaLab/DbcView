@@ -2,7 +2,7 @@ using Atlas.Blazor.DependencyInjection;
 using DbcView.Application;
 using DbcView.Infrastructure;
 
-namespace DbcView;
+namespace DbcView.Web;
 
 /// <summary>
 /// Composition root contract: creates one isolated application workspace per

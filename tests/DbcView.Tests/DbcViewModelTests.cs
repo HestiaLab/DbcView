@@ -1,6 +1,6 @@
 #nullable enable
 using DbcView.Domain;
-using DbcView.ViewModels;
+using DbcView.Web.ViewModels;
 using Xunit;
 
 namespace DbcView.Tests;

@@ -31,7 +31,7 @@ src/
 │                            IDbcFileRepository ports, DbcFileEntry
 ├── DbcView.Infrastructure/  DBC parser/serializer adapter, in-memory repository
 └── DbcView/                 Razor components, ViewModels, Atlas workspace,
-                             composition root (src/DbcView/DemoServiceCollectionExtensions.cs)
+                             composition root (src/DbcView.Web/DemoServiceCollectionExtensions.cs)
 ```
 
 Dependencies point inward only:

@@ -49,7 +49,7 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Publish
-        run: dotnet publish src/DbcView -c Release -o publish
+        run: dotnet publish src/DbcView.Web -c Release -o publish
 
       # Project site (https://HestiaLab.github.io/DbcView/) needs the base
       # href rewritten.

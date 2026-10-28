@@ -1,6 +1,7 @@
 #nullable enable
-using DbcView.Components;
-using DbcView.Pages;
+using DbcView.Web;
+using DbcView.Web.Components;
+using DbcView.Web.Pages;
 using Bunit;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.DependencyInjection;

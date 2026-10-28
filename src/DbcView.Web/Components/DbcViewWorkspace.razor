@@ -8,7 +8,7 @@
 @using Atlas.Core.Operations
 @using DbcView.Application
 @using DbcView.Domain
-@using DbcView.ViewModels
+@using DbcView.Web.ViewModels
 
 <section class="dbc-view-shell" data-testid="dbc-view-shell" data-compact-active="@activePanel" aria-label="DbcView IDE workspace">
     @if (workspace is not null)
@@ -48,23 +48,17 @@
             </StatusBarContent>
             <ContentRoutes>
                 <AtlasContentRoute Kind="@DbcContentKinds.DbcTree">
-                    <ChildContent Context="content">
-                        <DbcTreePanel Model="dbcTree" />
-                    </ChildContent>
+                    <DbcTreePanel Model="dbcTree" />
                 </AtlasContentRoute>
-                <AtlasContentRoute Kind="@DbcContentKinds.DbcEditor">
-                    <ChildContent Context="content">
-                        <DbcEditorPanel Content="content"
-                                        Workspace="dbcWorkspace"
-                                        Tree="dbcTree"
-                                        OnMessageSelected="ShowMessageProperties"
-                                        OnSignalSelected="ShowSignalProperties" />
-                    </ChildContent>
+                <AtlasContentRoute Kind="@DbcContentKinds.DbcEditor" Context="content">
+                    <DbcEditorPanel Content="content"
+                                    Workspace="dbcWorkspace"
+                                    Tree="dbcTree"
+                                    OnMessageSelected="ShowMessageProperties"
+                                    OnSignalSelected="ShowSignalProperties" />
                 </AtlasContentRoute>
                 <AtlasContentRoute Kind="@DbcContentKinds.DbcProperty">
-                    <ChildContent Context="content">
-                        <DbcPropertyPanel Model="dbcProperty" />
-                    </ChildContent>
+                    <DbcPropertyPanel Model="dbcProperty" />
                 </AtlasContentRoute>
             </ContentRoutes>
 

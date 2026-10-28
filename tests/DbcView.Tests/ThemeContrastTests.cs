@@ -139,7 +139,7 @@ public sealed class ThemeContrastTests
     {
         var root = FindRepositoryRoot();
         return File.ReadAllText(
-            Path.Combine(root, "src", "DbcView", "wwwroot", "css", "app.css"));
+            Path.Combine(root, "src", "DbcView.Web", "wwwroot", "css", "app.css"));
     }
 
     private static string FindRepositoryRoot()
