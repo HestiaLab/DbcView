@@ -74,8 +74,8 @@ public sealed class DbcPersistenceTests : BunitContext
         var cut = Render<DbcViewWorkspace>();
 
         cut.Find("[data-testid='dbc-persistence']").Click();
-        Assert.NotNull(cut.Find("[data-testid='dbc-persistence-dialog']"));
-        cut.Find("[data-testid='dbc-persistence-enable']").Click();
+        cut.WaitForElement("[data-testid='dbc-persistence-dialog']");
+        cut.WaitForElement("[data-testid='dbc-persistence-enable']").Click();
 
         await cut.InvokeAsync(() => { });
         Assert.True(_persistence.SaveCount >= 1);
@@ -91,12 +91,12 @@ public sealed class DbcPersistenceTests : BunitContext
     {
         var cut = Render<DbcViewWorkspace>();
         cut.Find("[data-testid='dbc-persistence']").Click();
-        cut.Find("[data-testid='dbc-persistence-enable']").Click();
+        cut.WaitForElement("[data-testid='dbc-persistence-enable']").Click();
         await cut.InvokeAsync(() => { });
         Assert.NotNull(_persistence.Snapshot);
 
         cut.Find("[data-testid='dbc-persistence']").Click();
-        await cut.Find("[data-testid='dbc-persistence-forget']")
+        await cut.WaitForElement("[data-testid='dbc-persistence-forget']")
             .ClickAsync(new MouseEventArgs());
 
         Assert.Equal(1, _persistence.ClearCount);
@@ -129,7 +129,7 @@ public sealed class DbcPersistenceTests : BunitContext
                 cut.Find("[data-testid='dbc-mode-text']").GetAttribute("aria-pressed")));
 
         cut.Find("[data-testid='dbc-persistence']").Click();
-        cut.Find("[data-testid='dbc-persistence-enable']").Click();
+        cut.WaitForElement("[data-testid='dbc-persistence-enable']").Click();
         await cut.InvokeAsync(() => { });
 
         cut.WaitForAssertion(() => Assert.NotNull(_persistence.Snapshot));
@@ -156,10 +156,10 @@ public sealed class DbcPersistenceTests : BunitContext
         cut.WaitForAssertion(
             () => Assert.NotNull(cut.Find("[data-testid='dbc-mode-text']")));
         cut.Find("[data-testid='dbc-mode-text']").Click();
-        cut.Find("textarea").Change("unsaved draft");
+        cut.WaitForElement("textarea").Change("unsaved draft");
 
         cut.Find("[data-testid='dbc-persistence']").Click();
-        cut.Find("[data-testid='dbc-persistence-enable']").Click();
+        cut.WaitForElement("[data-testid='dbc-persistence-enable']").Click();
         await cut.InvokeAsync(() => { });
 
         cut.WaitForAssertion(() => Assert.NotNull(_persistence.Snapshot));
@@ -175,7 +175,7 @@ public sealed class DbcPersistenceTests : BunitContext
         var cut = Render<DbcViewWorkspace>();
 
         cut.Find("[data-testid='dbc-persistence']").Click();
-        cut.Find("[data-testid='dbc-persistence-enable']").Click();
+        cut.WaitForElement("[data-testid='dbc-persistence-enable']").Click();
         await cut.InvokeAsync(() => { });
 
         cut.WaitForAssertion(
