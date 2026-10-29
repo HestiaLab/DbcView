@@ -49,9 +49,9 @@ composition root binds `DbcCodec` and `InMemoryDbcFileRepository`.
 
 ## Documentation Language
 
-English is the canonical documentation language. `README.zh.md` mirrors
-`README.md`: keep the same section structure and update both when the
-English version changes.
+Chinese is the canonical documentation language. `README.md` is the Chinese
+first screen; `README.en.md` mirrors it: keep the same section structure and
+update both when the Chinese version changes.
 
 ## Local Checks
 
