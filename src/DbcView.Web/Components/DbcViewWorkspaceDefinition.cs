@@ -17,12 +17,13 @@ internal static class DbcViewWorkspaceDefinition
 
         var dbcTree = Tool("dbc-tree", "DBC Explorer", contentKind: DbcContentKinds.DbcTree);
         var dbcProperty = Tool("dbc-property", "Properties", contentKind: DbcContentKinds.DbcProperty);
+        var dbcProblems = Tool("dbc-problems", "Problems", contentKind: DbcContentKinds.DbcProblems);
         var dbcEditor = Document("dbc-editor", "DBC Editor", isPinned: true, contentKind: DbcContentKinds.DbcEditor);
 
-        // The six LogicalRegion slots are preserved as tool groups. Only the
-        // explorer and properties carry content; the remaining four groups are
-        // intentionally empty (no DockItems), keeping the Atlas six-region
-        // toolbar demonstration intact while the DBC demo fills three panels.
+        // The six LogicalRegion slots are preserved as tool groups. The
+        // explorer, properties and bottom Problems group carry content; the
+        // remaining three groups are intentionally empty (no DockItems),
+        // keeping the Atlas six-region toolbar demonstration intact.
         var leftUpper = ToolGroup("left-upper", LogicalRegion.InlineStartUpper, dbcTree.Id);
         var leftLower = EmptyToolGroup("left-lower", LogicalRegion.InlineStartLower);
         var editor = new GroupNode(
@@ -34,7 +35,10 @@ internal static class DbcViewWorkspaceDefinition
             dbcEditor.Id);
         var rightUpper = ToolGroup("right-upper", LogicalRegion.InlineEndUpper, dbcProperty.Id);
         var rightLower = EmptyToolGroup("right-lower", LogicalRegion.InlineEndLower);
-        var bottomLeft = EmptyToolGroup("bottom-left", LogicalRegion.BlockEndInlineStart);
+        var bottomLeft = ToolGroup(
+            "bottom-left",
+            LogicalRegion.BlockEndInlineStart,
+            dbcProblems.Id);
         var bottomRight = EmptyToolGroup("bottom-right", LogicalRegion.BlockEndInlineEnd);
 
         var leftDock = Split(
@@ -100,6 +104,7 @@ internal static class DbcViewWorkspaceDefinition
         {
             dbcTree,
             dbcProperty,
+            dbcProblems,
             dbcEditor,
         };
         var toolBars = new[]
@@ -111,6 +116,7 @@ internal static class DbcViewWorkspaceDefinition
         {
             new ToolBarOrderState(LogicalRegion.InlineStartUpper, new[] { dbcTree.Id }),
             new ToolBarOrderState(LogicalRegion.InlineEndUpper, new[] { dbcProperty.Id }),
+            new ToolBarOrderState(LogicalRegion.BlockEndInlineStart, new[] { dbcProblems.Id }),
         };
 
         return new AtlasWorkspaceDefinition(

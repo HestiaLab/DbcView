@@ -525,6 +525,25 @@ textarea {
   color: var(--dv-warning-text);
 }
 
+.dbc-statusbar-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.dbc-statusbar-button:hover {
+  text-decoration: underline;
+}
+
+.dbc-statusbar-button:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid var(--dv-focus);
+  outline-offset: 2px;
+}
+
 .dbc-view-verification {
   display: grid;
   width: 100vw;
@@ -868,6 +887,104 @@ textarea {
 
 .dbc-diagnostic > span:last-child {
   overflow-wrap: anywhere;
+}
+
+/* ============================================================
+   Problems panel (Astrea ResourceTable).
+   ============================================================ */
+.dbc-problems-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 0.5rem 0.625rem;
+  background: var(--dv-surface);
+  color: var(--dv-text);
+  font-size: 0.75rem;
+}
+
+/* Astrea defines --ast-rt-* on its own root element, so the theme override
+   must land on that same element (via ContainerCss), not on an ancestor. */
+.dbc-problems-panel .dbc-problems-table {
+  --ast-rt-font-family: var(--dv-font-sans);
+  --ast-rt-font-size: 0.75rem;
+  --ast-rt-color-text: var(--dv-text);
+  --ast-rt-color-bg: var(--dv-surface);
+  --ast-rt-color-header-bg: var(--dv-sunken);
+  --ast-rt-color-border: var(--dv-divider);
+  --ast-rt-color-border-strong: var(--dv-border);
+  --ast-rt-color-accent: var(--dv-accent);
+  --ast-rt-color-hover-bg: var(--dv-hover);
+  --ast-rt-color-selected-bg: var(--dv-selection);
+  --ast-rt-color-scroll-thumb: var(--dv-border);
+  --ast-rt-color-scroll-track: var(--dv-sunken);
+  --ast-rt-th-content-padding: 0.5rem;
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  padding-left: 0;
+}
+
+.dbc-problems-panel:focus-visible {
+  outline: 2px solid var(--dv-focus);
+  outline-offset: -2px;
+}
+
+.dbc-problems-panel .ast-rt-table th,
+.dbc-problems-panel .ast-rt-table td {
+  padding: 0 0.5rem;
+  text-align: start;
+}
+
+.dbc-problems-panel .ast-rt-table td {
+  height: 1.75rem;
+  line-height: 1.75rem;
+}
+
+.dbc-problems-panel .ast-rt-th-content {
+  padding-right: 0.5rem;
+  text-align: start;
+}
+
+.dbc-problem-row {
+  cursor: pointer;
+}
+
+.dbc-problem-row:hover td {
+  background: var(--dv-hover);
+}
+
+.dbc-problem-row:focus-visible {
+  outline: 2px solid var(--dv-focus);
+  outline-offset: -2px;
+}
+
+.dbc-problem-row[data-severity="error"] .dbc-problem-severity {
+  color: var(--dv-danger-text);
+  font-weight: 600;
+}
+
+.dbc-problem-row[data-severity="warning"] .dbc-problem-severity {
+  color: var(--dv-warning-text);
+  font-weight: 600;
+}
+
+.dbc-problem-line,
+.dbc-problem-code {
+  color: var(--dv-text-secondary);
+  font-family: var(--dv-font-mono);
+  font-size: 0.6875rem;
+}
+
+.dbc-problem-message {
+  color: var(--dv-text);
+}
+
+.dbc-problems-panel .dbc-problems-empty {
+  padding: 0.75rem 0.5rem;
+  color: var(--dv-text-muted);
+  text-align: start;
 }
 
 /* ============================================================
@@ -1326,7 +1443,8 @@ textarea {
 
   .dbc-view-shell[data-compact-active="explorer"] [data-atlas-group-id="left-upper"],
   .dbc-view-shell[data-compact-active="editor"] [data-atlas-group-id="editor"],
-  .dbc-view-shell[data-compact-active="properties"] [data-atlas-group-id="right-upper"] {
+  .dbc-view-shell[data-compact-active="properties"] [data-atlas-group-id="right-upper"],
+  .dbc-view-shell[data-compact-active="problems"] [data-atlas-group-id="bottom-left"] {
     display: grid;
   }
 

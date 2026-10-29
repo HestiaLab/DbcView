@@ -43,6 +43,10 @@
                     data-testid="dbc-compact-properties"
                     aria-pressed="@(activePanel == "properties" ? "true" : "false")"
                     @onclick='() => SetActivePanel("properties")'>Properties</button>
+            <button type="button"
+                    data-testid="dbc-compact-problems"
+                    aria-pressed="@(activePanel == "problems" ? "true" : "false")"
+                    @onclick='() => SetActivePanel("problems")'>Problems</button>
         </nav>
     }
     @if (workspace is null)
@@ -73,7 +77,8 @@
                                   UndefinedByteCount="@currentUndefinedBytes"
                                   Persistence="@PersistenceStatus"
                                   ErrorCount="@errorCount"
-                                  WarningCount="@warningCount" />
+                                  WarningCount="@warningCount"
+                                  OnProblemsSelected="FocusProblemsAsync" />
             </StatusBarContent>
             <ContentRoutes>
                 <AtlasContentRoute Kind="@DbcContentKinds.DbcTree">
@@ -83,12 +88,19 @@
                     <DbcEditorPanel Content="content"
                                     Workspace="dbcWorkspace"
                                     OnMessageSelected="ShowMessageProperties"
-                                    OnSignalSelected="ShowSignalProperties" />
+                                    OnSignalSelected="ShowSignalProperties"
+                                    OnCheck="CheckFromEditorAsync" />
                 </AtlasContentRoute>
                 <AtlasContentRoute Kind="@DbcContentKinds.DbcProperty">
                     <DbcPropertyPanel Model="dbcProperty"
                                       OnLocateSource="LocateSourceAsync"
                                       ApplyEdit="ApplyStructuredEdit" />
+                </AtlasContentRoute>
+                <AtlasContentRoute Kind="@DbcContentKinds.DbcProblems">
+                    <DbcProblemsPanel @ref="problemsPanel"
+                                      DocumentKey="@problemsDocumentKey"
+                                      Diagnostics="problems"
+                                      OnLocate="LocateProblemAsync" />
                 </AtlasContentRoute>
             </ContentRoutes>
 
@@ -101,13 +113,14 @@
     {
         <DbcCommandPalette Model="paletteModel"
                            OnSelected="OnPaletteSelected"
+                           OnCommandSelected="OnPaletteCommandSelected"
                            OnClosed="OnPaletteClosed" />
     }
     @if (persistenceDialogOpen)
     {
         <DbcPersistenceDialog Enabled="persistenceEnabled"
                               LastSavedAt="persistenceSavedAt"
-                              Error="persistenceError"
+                              Error="@persistenceError"
                               OnEnable="EnablePersistenceAsync"
                               OnForget="ForgetPersistenceAsync"
                               OnClosed="ClosePersistenceDialog" />
@@ -144,6 +157,11 @@
     private string? persistenceError;
     private string? persistenceNotice;
     private CancellationTokenSource? persistenceDebounce;
+    private IReadOnlyList<DbcDiagnostic> problems = Array.Empty<DbcDiagnostic>();
+    private string? problemsDocumentKey;
+    private string? problemsCheckedContent;
+    private CancellationTokenSource? problemsDebounce;
+    private DbcProblemsPanel? problemsPanel;
 
     [Inject]
     private IAtlasWorkspaceFactory Factory { get; set; } = null!;
@@ -285,6 +303,7 @@
             currentEncoding = file.Encoding?.DisplayName;
             currentUndefinedBytes = file.Encoding?.UndefinedByteCount ?? 0;
             UpdateStatusDiagnostics();
+            ShowProblemsForFile(documentId, file);
             operationStatus = $"Opened {documentId.Key}";
             activePanel = "editor";
         }
@@ -659,6 +678,7 @@
             }
 
             UpdateStatusDiagnostics();
+            ShowProblemsForFile(documentId, file);
             activePanel = "editor";
         }
         catch (Exception ex)
@@ -834,6 +854,155 @@
         operationStatus = "Local session could not be restored";
     }
 
+    private void ResetProblems()
+    {
+        problems = Array.Empty<DbcDiagnostic>();
+        problemsDocumentKey = null;
+        problemsCheckedContent = null;
+        CancelScheduledCheck();
+    }
+
+    private void ShowProblemsForFile(DbcDocumentId documentId, DbcFileEntry file)
+    {
+        problems = file.ParseResult.Diagnostics;
+        problemsDocumentKey = documentId.Key;
+        problemsCheckedContent = file.Content;
+        CancelScheduledCheck();
+        UpdateProblemCheckState();
+    }
+
+    private void UpdateProblemCheckState()
+    {
+        if (currentDocument is not { } documentId
+            || Sessions.Find(documentId) is not { } model)
+        {
+            return;
+        }
+
+        if (string.Equals(model.EditedContent, problemsCheckedContent, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        ScheduleCheck();
+    }
+
+    private void ScheduleCheck()
+    {
+        var cancellation = new CancellationTokenSource();
+        var previous = Interlocked.Exchange(ref problemsDebounce, cancellation);
+        previous?.Cancel();
+        previous?.Dispose();
+        _ = CheckAfterDelayAsync(cancellation.Token);
+    }
+
+    private async Task CheckAfterDelayAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(400, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        await InvokeAsync(CheckCurrentDocumentAsync);
+    }
+
+    private void CancelScheduledCheck()
+    {
+        var pending = Interlocked.Exchange(ref problemsDebounce, null);
+        pending?.Cancel();
+        pending?.Dispose();
+    }
+
+    private async Task CheckFromEditorAsync()
+    {
+        await CheckCurrentDocumentAsync();
+        await FocusProblemsAsync();
+    }
+
+    private async Task CheckCurrentDocumentAsync()
+    {
+        if (currentDocument is not { } documentId
+            || dbcWorkspace.Find(documentId) is not { } file)
+        {
+            return;
+        }
+
+        CancelScheduledCheck();
+        var model = Sessions.Find(documentId);
+        var content = model?.EditedContent ?? file.Content;
+
+        DbcParseResult result;
+        try
+        {
+            result = model?.ValidateDownload() ?? dbcWorkspace.Parse(file.Content);
+        }
+        catch (Exception ex)
+        {
+            operationStatus = $"Check failed: {ex.Message}";
+            await RefreshAsync();
+            return;
+        }
+
+        problems = result.Diagnostics;
+        problemsDocumentKey = documentId.Key;
+        problemsCheckedContent = content;
+        errorCount = result.ErrorCount;
+        warningCount = result.Diagnostics.Count(
+            diagnostic => diagnostic.Severity == DbcDiagnosticSeverity.Warning);
+        operationStatus = result.Diagnostics.Count == 0
+            ? $"Checked {documentId.Key}: no problems"
+            : $"Checked {documentId.Key}: {result.ErrorCount} error(s), {warningCount} warning(s)";
+        await RefreshAsync();
+    }
+
+    private async Task FocusProblemsAsync()
+    {
+        activePanel = "problems";
+        await RefreshAsync();
+        if (problemsPanel is not null)
+        {
+            await problemsPanel.FocusAsync();
+        }
+    }
+
+    private async Task OnPaletteCommandSelected(DbcPaletteCommand command)
+    {
+        paletteOpen = false;
+        if (string.Equals(
+                command.Id,
+                DbcCommandPaletteModel.CheckDocumentCommandId,
+                StringComparison.Ordinal))
+        {
+            await CheckFromEditorAsync();
+        }
+
+        await RefreshAsync();
+    }
+
+    [JSInvokable]
+    public void CheckDocumentFromShortcut()
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await CheckFromEditorAsync();
+            StateHasChanged();
+        });
+    }
+
+    private async Task LocateProblemAsync(int lineNumber)
+    {
+        if (lineNumber <= 0 || currentDocument is null)
+        {
+            return;
+        }
+
+        await LocateSourceAsync(lineNumber);
+    }
+
     private async Task UndoAsync()
     {
         if (workspace is null)
@@ -861,7 +1030,6 @@
     private void OnWorkspaceChanged(object? sender, WorkspaceChangedEventArgs args)
     {
         revision = args.ChangeSet.AfterRevision;
-        UpdateStatusDiagnostics();
         SchedulePersist();
         _ = RefreshAsync();
     }
@@ -869,10 +1037,17 @@
     private void OnDocumentStoreChanged()
     {
         UpdateStatusDiagnostics();
-        if (currentDocument is { } documentId
-            && dbcWorkspace.Find(documentId) is { } file)
+        if (currentDocument is { } documentId)
         {
-            dbcProperty.Refresh(file);
+            if (dbcWorkspace.Find(documentId) is { } file)
+            {
+                dbcProperty.Refresh(file);
+                ShowProblemsForFile(documentId, file);
+            }
+            else
+            {
+                ResetProblems();
+            }
         }
 
         SchedulePersist();
@@ -881,6 +1056,7 @@
 
     private void OnEditorSessionsChanged()
     {
+        UpdateProblemCheckState();
         SchedulePersist();
     }
 
@@ -902,6 +1078,11 @@
             dbcProperty.ShowFile(file);
             currentEncoding = file.Encoding?.DisplayName;
             currentUndefinedBytes = file.Encoding?.UndefinedByteCount ?? 0;
+            ShowProblemsForFile(documentId, file);
+        }
+        else
+        {
+            ResetProblems();
         }
 
         UpdateStatusDiagnostics();
@@ -923,6 +1104,7 @@
         currentEncoding = null;
         currentUndefinedBytes = 0;
         paletteOpen = false;
+        ResetProblems();
         operationStatus = "Ready";
         SchedulePersist();
         _ = RefreshAsync();
@@ -950,33 +1132,39 @@
 
     private void UpdateStatusDiagnostics()
     {
-        errorCount = 0;
-        warningCount = 0;
-
-        if (currentDocument is null)
+        if (currentDocument is not { } documentId)
         {
+            errorCount = 0;
+            warningCount = 0;
             return;
         }
 
-        var file = dbcWorkspace.Find(currentDocument.Value);
+        var file = dbcWorkspace.Find(documentId);
         if (file is null)
         {
             currentDocument = null;
             currentDocumentItemId = null;
+            errorCount = 0;
+            warningCount = 0;
             return;
         }
 
+        var errors = 0;
+        var warnings = 0;
         foreach (var diagnostic in file.ParseResult.Diagnostics)
         {
             if (diagnostic.Severity == DbcDiagnosticSeverity.Error)
             {
-                errorCount++;
+                errors++;
             }
             else
             {
-                warningCount++;
+                warnings++;
             }
         }
+
+        errorCount = errors;
+        warningCount = warnings;
     }
 
     private async Task RefreshAsync()
@@ -1007,6 +1195,9 @@
         persistenceDebounce?.Cancel();
         persistenceDebounce?.Dispose();
         persistenceDebounce = null;
+        problemsDebounce?.Cancel();
+        problemsDebounce?.Dispose();
+        problemsDebounce = null;
         dbcTree.Dispose();
         dbcWorkspace.Dispose();
         await workspace.DisposeAsync();

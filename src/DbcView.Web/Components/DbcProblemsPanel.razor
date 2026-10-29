@@ -1,0 +1,125 @@
+@namespace DbcView.Web.Components
+@using System.Globalization
+@using DbcView.Domain
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
+
+<div class="dbc-problems-panel"
+     data-testid="dbc-problems"
+     @ref="_root"
+     tabindex="-1">
+    <ResourceTable Columns="_columns"
+                   ShowButton="false"
+                   ShowRedoButton="false"
+                   ResizableColumns="false"
+                   ContainerCss="dbc-problems-table">
+        <TableBody>
+            @if (Diagnostics.Count == 0)
+            {
+                <tr>
+                    <td class="dbc-problems-empty"
+                        colspan="4"
+                        data-testid="dbc-problems-empty">
+                        @(DocumentKey is null
+                            ? "Open a .dbc file to check it for problems."
+                            : "No problems found.")
+                    </td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var diagnostic in Diagnostics)
+                {
+                    <tr class="dbc-problem-row"
+                        data-testid="dbc-problem-row"
+                        data-severity="@diagnostic.Severity.ToString().ToLowerInvariant()"
+                        data-line="@diagnostic.LineNumber"
+                        tabindex="0"
+                        @onclick="() => LocateAsync(diagnostic)"
+                        @onkeydown="args => HandleKeyDownAsync(args, diagnostic)">
+                        <td class="dbc-problem-severity" data-testid="dbc-problem-severity">
+                            @SeverityLabel(diagnostic)
+                        </td>
+                        <td class="dbc-problem-line" data-testid="dbc-problem-line">
+                            @LineLabel(diagnostic)
+                        </td>
+                        <td class="dbc-problem-code" data-testid="dbc-problem-code">
+                            @diagnostic.Code
+                        </td>
+                        <td class="dbc-problem-message"
+                            data-testid="dbc-problem-message"
+                            title="@diagnostic.Message">
+                            @diagnostic.Message
+                        </td>
+                    </tr>
+                }
+            }
+        </TableBody>
+    </ResourceTable>
+</div>
+
+@code {
+    private ElementReference _root;
+
+    private static readonly TableColumn[] _columns =
+    {
+        new("Severity") { Key = "severity", Width = "84px", MinWidth = 72, Resizable = false },
+        new("Line") { Key = "line", Width = "60px", MinWidth = 56, Resizable = false },
+        new("Code") { Key = "code", Width = "88px", MinWidth = 72, Resizable = false },
+        new("Message") { Key = "message", MinWidth = 120, Resizable = false },
+    };
+
+    [Parameter]
+    public string? DocumentKey { get; set; }
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DbcDiagnostic> Diagnostics { get; set; } = Array.Empty<DbcDiagnostic>();
+
+    [Parameter]
+    public EventCallback<int> OnLocate { get; set; }
+
+    public async ValueTask FocusAsync()
+    {
+        if (!OperatingSystem.IsBrowser())
+        {
+            return;
+        }
+
+        try
+        {
+            await _root.FocusAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (JSException)
+        {
+        }
+    }
+
+    private static string SeverityLabel(DbcDiagnostic diagnostic)
+    {
+        return diagnostic.Severity == DbcDiagnosticSeverity.Error ? "Error" : "Warning";
+    }
+
+    private static string LineLabel(DbcDiagnostic diagnostic)
+    {
+        return diagnostic.LineNumber > 0
+            ? diagnostic.LineNumber.ToString(CultureInfo.InvariantCulture)
+            : "—";
+    }
+
+    private Task LocateAsync(DbcDiagnostic diagnostic)
+    {
+        return diagnostic.LineNumber > 0
+            ? OnLocate.InvokeAsync(diagnostic.LineNumber)
+            : Task.CompletedTask;
+    }
+
+    private Task HandleKeyDownAsync(KeyboardEventArgs args, DbcDiagnostic diagnostic)
+    {
+        return args.Key is "Enter" or " "
+            ? LocateAsync(diagnostic)
+            : Task.CompletedTask;
+    }
+}

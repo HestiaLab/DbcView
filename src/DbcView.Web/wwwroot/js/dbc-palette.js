@@ -5,21 +5,30 @@ export function installShortcut(dotNetReference) {
   disposeShortcut();
 
   const handler = event => {
-    if (event.key !== "/" || event.ctrlKey || event.metaKey || event.altKey) {
-      return;
-    }
-
-    if (isEditable(event.target)) {
-      return;
-    }
-
     const shell = document.querySelector("[data-testid='dbc-view-shell']");
     if (!shell || shell.dataset.documentOpen !== "true") {
       return;
     }
 
-    const palette = document.querySelector(paletteSelector);
-    if (palette && palette.open) {
+    if (document.querySelector("dialog[open]")) {
+      return;
+    }
+
+    if (event.ctrlKey
+        && !event.shiftKey
+        && !event.metaKey
+        && !event.altKey
+        && event.key === "Enter") {
+      event.preventDefault();
+      dotNetReference.invokeMethodAsync("CheckDocumentFromShortcut").catch(() => { });
+      return;
+    }
+
+    if (event.key !== "/" || event.ctrlKey || event.metaKey || event.altKey) {
+      return;
+    }
+
+    if (isEditable(event.target)) {
       return;
     }
 

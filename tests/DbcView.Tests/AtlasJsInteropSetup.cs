@@ -26,6 +26,10 @@ internal static class AtlasJsInteropSetup
         // keep the rest of the runtime strict and let this third-party module
         // answer with defaults.
         astrea.Mode = JSRuntimeMode.Loose;
+
+        var resourceTable = jsInterop.SetupModule(
+            "./_content/Astrea.Components/astrea-resource-table.js");
+        resourceTable.Mode = JSRuntimeMode.Loose;
         return module;
     }
 }

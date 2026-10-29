@@ -7,7 +7,7 @@
 
 <dialog class="dbc-palette"
         data-testid="dbc-command-palette"
-        aria-label="Search messages and signals"
+        aria-label="Search messages, signals and commands"
         @ref="_dialog"
         @onclose="OnDialogClosed">
     <div class="dbc-palette-body">
@@ -18,12 +18,12 @@
                    data-testid="dbc-palette-input"
                    type="text"
                    role="combobox"
-                   aria-label="Search messages and signals"
+                   aria-label="Search messages, signals and commands"
                    aria-expanded="@(Model.ResultCount > 0 ? "true" : "false")"
                    aria-controls="@(Model.ResultCount > 0 ? "dbc-palette-results" : null)"
                    aria-autocomplete="list"
                    aria-activedescendant="@ActiveDescendant"
-                   placeholder="Search messages, signals, IDs, transmitter or receiver"
+                   placeholder="Search messages, signals, IDs, or commands"
                    value="@Model.Query"
                    @oninput="OnInput"
                    @onkeydown="OnKeyDown" />
@@ -40,7 +40,7 @@
         @if (!Model.HasQuery)
         {
             <p class="dbc-palette-hint" data-testid="dbc-palette-hint">
-                Type a message or signal name, a decimal/0x ID, a transmitter, or a receiver.
+                Type a message or signal name, a decimal/0x ID, or a command such as “check”.
             </p>
         }
         else if (Model.ResultCount == 0)
@@ -53,6 +53,31 @@
                  class="dbc-palette-results"
                  role="listbox"
                  aria-label="Search results">
+                @if (Model.CommandResults.Count > 0)
+                {
+                    <div role="group" aria-labelledby="dbc-palette-commands">
+                        <div id="dbc-palette-commands" class="dbc-palette-group" role="presentation">
+                            Commands
+                        </div>
+                        @for (var index = 0; index < Model.CommandResults.Count; index++)
+                        {
+                            var optionIndex = index;
+                            var command = Model.CommandResults[index];
+                            var active = optionIndex == _activeIndex;
+                            <div id="@OptionId(optionIndex)"
+                                 role="option"
+                                 aria-selected="@(active ? "true" : "false")"
+                                 class="@(active ? "dbc-palette-option is-active" : "dbc-palette-option")"
+                                 data-testid="dbc-palette-command"
+                                 data-command-id="@command.Id"
+                                 @onclick="() => SelectCommandAsync(command)"
+                                 @onmouseenter="() => SetActive(optionIndex)">
+                                <span class="dbc-palette-option-title">@command.Title</span>
+                                <span class="dbc-palette-option-meta">@command.Detail</span>
+                            </div>
+                        }
+                    </div>
+                }
                 @if (Model.MessageResults.Count > 0)
                 {
                     <div role="group" aria-labelledby="dbc-palette-messages">
@@ -61,7 +86,7 @@
                         </div>
                         @for (var index = 0; index < Model.MessageResults.Count; index++)
                         {
-                            var optionIndex = index;
+                            var optionIndex = Model.CommandResults.Count + index;
                             var result = Model.MessageResults[index];
                             var active = optionIndex == _activeIndex;
                             <div id="@OptionId(optionIndex)"
@@ -93,7 +118,9 @@
                         </div>
                         @for (var index = 0; index < Model.SignalResults.Count; index++)
                         {
-                            var optionIndex = Model.MessageResults.Count + index;
+                            var optionIndex = Model.CommandResults.Count
+                                + Model.MessageResults.Count
+                                + index;
                             var result = Model.SignalResults[index];
                             var active = optionIndex == _activeIndex;
                             <div id="@OptionId(optionIndex)"
@@ -121,7 +148,7 @@
         }
 
         <div class="dbc-palette-footer" aria-hidden="true">
-            ↑↓ navigate · Enter jump · Esc close
+            ↑↓ navigate · Enter run/jump · Esc close
         </div>
         <div class="dbc-sr-only" role="status" aria-live="polite">@Announcement</div>
     </div>
@@ -144,30 +171,45 @@
     public EventCallback<DbcPaletteResult> OnSelected { get; set; }
 
     [Parameter]
+    public EventCallback<DbcPaletteCommand> OnCommandSelected { get; set; }
+
+    [Parameter]
     public EventCallback OnClosed { get; set; }
+
+    private DbcPaletteCommand? ActiveCommand
+    {
+        get
+        {
+            return _activeIndex >= 0 && _activeIndex < Model.CommandResults.Count
+                ? Model.CommandResults[_activeIndex]
+                : null;
+        }
+    }
 
     private DbcPaletteResult? ActiveResult
     {
         get
         {
-            if (_activeIndex < 0)
+            var index = _activeIndex - Model.CommandResults.Count;
+            if (index < 0)
             {
                 return null;
             }
 
-            if (_activeIndex < Model.MessageResults.Count)
+            if (index < Model.MessageResults.Count)
             {
-                return Model.MessageResults[_activeIndex];
+                return Model.MessageResults[index];
             }
 
-            var signalIndex = _activeIndex - Model.MessageResults.Count;
+            var signalIndex = index - Model.MessageResults.Count;
             return signalIndex < Model.SignalResults.Count
                 ? Model.SignalResults[signalIndex]
                 : null;
         }
     }
 
-    private string? ActiveDescendant => ActiveResult is null ? null : OptionId(_activeIndex);
+    private string? ActiveDescendant =>
+        ActiveCommand is null && ActiveResult is null ? null : OptionId(_activeIndex);
 
     private string Announcement
     {
@@ -183,9 +225,14 @@
                 return "No matches.";
             }
 
-            return Model.TotalMatchCount > Model.ResultCount
-                ? $"{Model.ResultCount} results shown of {Model.TotalMatchCount} matches."
-                : $"{Model.ResultCount} results.";
+            if (Model.TotalMatchCount > Model.ResultCount)
+            {
+                return Model.ResultCount == 1
+                    ? $"1 result shown of {Model.TotalMatchCount} matches."
+                    : $"{Model.ResultCount} results shown of {Model.TotalMatchCount} matches.";
+            }
+
+            return Model.ResultCount == 1 ? "1 result." : $"{Model.ResultCount} results.";
         }
     }
 
@@ -275,7 +322,11 @@
 
                 break;
             case "Enter":
-                if (ActiveResult is { } result)
+                if (ActiveCommand is { } command)
+                {
+                    await SelectCommandAsync(command);
+                }
+                else if (ActiveResult is { } result)
                 {
                     await SelectAsync(result);
                 }
@@ -308,6 +359,18 @@
         _closing = true;
         await CloseDialogAsync();
         await OnSelected.InvokeAsync(result);
+    }
+
+    private async Task SelectCommandAsync(DbcPaletteCommand command)
+    {
+        if (_closing)
+        {
+            return;
+        }
+
+        _closing = true;
+        await CloseDialogAsync();
+        await OnCommandSelected.InvokeAsync(command);
     }
 
     private async Task CloseAsync()

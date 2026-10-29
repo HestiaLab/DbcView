@@ -344,7 +344,7 @@ public sealed class DbcPanelsTests : BunitContext
     }
 
     [Fact]
-    public void EditorPanel_save_invalid_draft_shows_errors_and_keeps_raw_text()
+    public void EditorPanel_save_invalid_draft_keeps_raw_text_and_blocks_table()
     {
         using var workspace = TestWorkspace.Create();
         var entry = workspace.AddFile("can-a", "a.dbc", ValidDbc);
@@ -360,11 +360,9 @@ public sealed class DbcPanelsTests : BunitContext
         cut.WaitForAssertion(
             () =>
             {
-                var alert = cut.Find("[data-testid='dbc-parse-errors']");
-                Assert.Equal("alert", alert.GetAttribute("role"));
-                Assert.Contains("unvalidated draft", alert.TextContent, StringComparison.Ordinal);
-                Assert.Contains("DBC001", alert.TextContent, StringComparison.Ordinal);
+                Assert.False(workspace.Find(entry.Id)!.ParseResult.IsValid);
                 Assert.Equal(InvalidDbc, workspace.Find(entry.Id)!.Content);
+                Assert.Empty(cut.FindAll("[data-testid='dbc-parse-errors']"));
             });
 
         cut.Find("[data-testid='dbc-mode-table']").Click();
@@ -375,7 +373,7 @@ public sealed class DbcPanelsTests : BunitContext
     }
 
     [Fact]
-    public void EditorPanel_shows_parse_errors_for_invalid_file_instead_of_empty_document()
+    public void EditorPanel_blocks_table_for_invalid_file_instead_of_empty_document()
     {
         using var workspace = TestWorkspace.Create();
         var entry = workspace.AddFile("can-a", "bad.dbc", InvalidDbc);
@@ -384,9 +382,9 @@ public sealed class DbcPanelsTests : BunitContext
 
         var cut = Render<DbcEditorPanel>(p => p.Add(x => x.Model, model));
 
-        Assert.NotEmpty(cut.FindAll("[data-testid='dbc-parse-errors']"));
-        Assert.Contains("DBC001", cut.Markup, StringComparison.Ordinal);
+        Assert.Contains("Table view is unavailable", cut.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("No messages in this DBC file", cut.Markup, StringComparison.Ordinal);
+        Assert.Empty(cut.FindAll("[data-testid='dbc-parse-errors']"));
     }
 
     [Fact]
@@ -400,11 +398,10 @@ public sealed class DbcPanelsTests : BunitContext
         var cut = Render<DbcEditorPanel>(p => p.Add(x => x.Model, model));
 
         Assert.Contains("No messages in this DBC file.", cut.Markup, StringComparison.Ordinal);
-        Assert.Empty(cut.FindAll("[data-testid='dbc-parse-errors']"));
     }
 
     [Fact]
-    public void EditorPanel_shows_bit_range_warnings_without_hiding_the_table()
+    public void EditorPanel_keeps_table_usable_when_file_has_warnings()
     {
         using var workspace = TestWorkspace.Create();
         var entry = workspace.AddFile(
@@ -417,7 +414,7 @@ public sealed class DbcPanelsTests : BunitContext
 
         var cut = Render<DbcEditorPanel>(p => p.Add(x => x.Model, model));
 
-        Assert.NotEmpty(cut.FindAll("[data-testid='dbc-parse-warnings']"));
+        Assert.Empty(cut.FindAll("[data-testid='dbc-parse-warnings']"));
         Assert.Empty(cut.FindAll("[data-testid='dbc-parse-errors']"));
 
         cut.Find("[data-testid='dbc-toggle-message']").Click();
