@@ -13,7 +13,7 @@
 ## Impact
 
 - Atlas 依赖影响（`Directory.Packages.props` 版本）：
-- 文档影响（`README.md` / `README.zh.md` 需同步修改）：
+- 文档影响（`README.md` / `README.en.md` 需同步修改）：
 - 消费边界影响（禁止项目间引用）：
 
 ## AI Assistance
