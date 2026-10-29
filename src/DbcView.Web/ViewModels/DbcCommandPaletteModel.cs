@@ -57,6 +57,8 @@ public sealed class DbcCommandPaletteModel
     public const int MaxResults = 50;
     public const string CheckDocumentCommandId = "check-document";
 
+    private const int CommandMinimumQueryLength = 3;
+
     private static readonly CommandDefinition[] Commands =
     {
         new(
@@ -306,6 +308,13 @@ public sealed class DbcCommandPaletteModel
 
     private static IReadOnlyList<DbcPaletteCommand> MatchCommands(string query)
     {
+        // Short queries are almost always message/signal lookups; matching
+        // commands there would hijack Enter and hide the intended result.
+        if (query.Length < CommandMinimumQueryLength)
+        {
+            return Array.Empty<DbcPaletteCommand>();
+        }
+
         List<DbcPaletteCommand>? matches = null;
         foreach (var command in Commands)
         {

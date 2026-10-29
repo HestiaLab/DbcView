@@ -227,6 +227,15 @@ public sealed class DbcCommandPaletteModelTests
         model.SetQuery("validate");
         Assert.Single(model.CommandResults);
 
+        model.SetQuery("c");
+        Assert.Empty(model.CommandResults);
+
+        model.SetQuery("ch");
+        Assert.Empty(model.CommandResults);
+
+        model.SetQuery("che");
+        Assert.Single(model.CommandResults);
+
         model.SetQuery("speed");
         Assert.Empty(model.CommandResults);
     }

@@ -1132,33 +1132,39 @@
 
     private void UpdateStatusDiagnostics()
     {
-        errorCount = 0;
-        warningCount = 0;
-
-        if (currentDocument is null)
+        if (currentDocument is not { } documentId)
         {
+            errorCount = 0;
+            warningCount = 0;
             return;
         }
 
-        var file = dbcWorkspace.Find(currentDocument.Value);
+        var file = dbcWorkspace.Find(documentId);
         if (file is null)
         {
             currentDocument = null;
             currentDocumentItemId = null;
+            errorCount = 0;
+            warningCount = 0;
             return;
         }
 
+        var errors = 0;
+        var warnings = 0;
         foreach (var diagnostic in file.ParseResult.Diagnostics)
         {
             if (diagnostic.Severity == DbcDiagnosticSeverity.Error)
             {
-                errorCount++;
+                errors++;
             }
             else
             {
-                warningCount++;
+                warnings++;
             }
         }
+
+        errorCount = errors;
+        warningCount = warnings;
     }
 
     private async Task RefreshAsync()
