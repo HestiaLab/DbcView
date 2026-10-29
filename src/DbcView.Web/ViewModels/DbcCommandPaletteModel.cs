@@ -40,18 +40,36 @@ public sealed record DbcPaletteResult(
             $"0x{Message.Id:X} · {Message.Name} · {Signal.Receiver}");
 }
 
+/// <summary>A workspace command offered by the palette (for example, re-run validation).</summary>
+public sealed record DbcPaletteCommand(
+    string Id,
+    string Title,
+    string Detail,
+    DbcPaletteMatchRank Rank);
+
 /// <summary>
-/// Deterministic search over the active document's messages and signals.
-/// Matching is exact &gt; prefix &gt; substring, ties keep source order, and
-/// the grouped result list is capped at 50 entries.
+/// Deterministic search over the active document's messages, signals and
+/// workspace commands. Matching is exact &gt; prefix &gt; substring, ties keep
+/// source order, and the grouped result list is capped at 50 entries.
 /// </summary>
 public sealed class DbcCommandPaletteModel
 {
     public const int MaxResults = 50;
+    public const string CheckDocumentCommandId = "check-document";
+
+    private static readonly CommandDefinition[] Commands =
+    {
+        new(
+            CheckDocumentCommandId,
+            "Check current document",
+            "Re-run DBC validation for the active file (Ctrl+Enter)",
+            "check validate validation recheck problems diagnostics"),
+    };
 
     private DbcDocument? _document;
     private List<DbcCommentEntry>?[] _messageCommentsByIndex = Array.Empty<List<DbcCommentEntry>?>();
     private List<DbcCommentEntry>?[][] _signalCommentsByIndex = Array.Empty<List<DbcCommentEntry>?[]>();
+    private IReadOnlyList<DbcPaletteCommand> _commandResults = Array.Empty<DbcPaletteCommand>();
     private IReadOnlyList<DbcPaletteResult> _messageResults = Array.Empty<DbcPaletteResult>();
     private IReadOnlyList<DbcPaletteResult> _signalResults = Array.Empty<DbcPaletteResult>();
 
@@ -61,11 +79,14 @@ public sealed class DbcCommandPaletteModel
 
     public bool HasQuery => !string.IsNullOrWhiteSpace(Query);
 
+    public IReadOnlyList<DbcPaletteCommand> CommandResults => _commandResults;
+
     public IReadOnlyList<DbcPaletteResult> MessageResults => _messageResults;
 
     public IReadOnlyList<DbcPaletteResult> SignalResults => _signalResults;
 
-    public int ResultCount => _messageResults.Count + _signalResults.Count;
+    public int ResultCount =>
+        _commandResults.Count + _messageResults.Count + _signalResults.Count;
 
     public int TotalMatchCount { get; private set; }
 
@@ -134,6 +155,7 @@ public sealed class DbcCommandPaletteModel
         }
 
         Query = string.Empty;
+        _commandResults = Array.Empty<DbcPaletteCommand>();
         _messageResults = Array.Empty<DbcPaletteResult>();
         _signalResults = Array.Empty<DbcPaletteResult>();
         TotalMatchCount = 0;
@@ -157,15 +179,17 @@ public sealed class DbcCommandPaletteModel
         var needle = Query.Trim();
         if (_document is null || needle.Length == 0)
         {
+            _commandResults = Array.Empty<DbcPaletteCommand>();
             _messageResults = Array.Empty<DbcPaletteResult>();
             _signalResults = Array.Empty<DbcPaletteResult>();
             return;
         }
 
+        _commandResults = MatchCommands(needle);
         var exact = new List<DbcPaletteResult>(MaxResults);
         var prefix = new List<DbcPaletteResult>(MaxResults);
         var substring = new List<DbcPaletteResult>(MaxResults);
-        var total = 0;
+        var total = _commandResults.Count;
         var numericQuery = TryParseMessageId(needle, out var numericMessageId);
 
         for (var messageIndex = 0; messageIndex < _document.Messages.Count; messageIndex++)
@@ -280,6 +304,43 @@ public sealed class DbcCommandPaletteModel
         }
     }
 
+    private static IReadOnlyList<DbcPaletteCommand> MatchCommands(string query)
+    {
+        List<DbcPaletteCommand>? matches = null;
+        foreach (var command in Commands)
+        {
+            var rank = MatchCommand(command, query);
+            if (rank is null)
+            {
+                continue;
+            }
+
+            matches ??= new List<DbcPaletteCommand>(Commands.Length);
+            matches.Add(new DbcPaletteCommand(
+                command.Id,
+                command.Title,
+                command.Detail,
+                rank.Value));
+        }
+
+        return matches is null ? Array.Empty<DbcPaletteCommand>() : matches;
+    }
+
+    private static DbcPaletteMatchRank? MatchCommand(
+        CommandDefinition command,
+        string query)
+    {
+        var rank = MatchText(command.Title, query);
+        foreach (var keyword in command.Keywords.Split(
+                     ' ',
+                     StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            rank = Best(rank, MatchText(keyword, query));
+        }
+
+        return Best(rank, MatchText(command.Detail, query));
+    }
+
     private static DbcPaletteMatchRank? MatchMessage(
         DbcMessage message,
         string query,
@@ -391,4 +452,10 @@ public sealed class DbcCommandPaletteModel
 
         return candidate < current ? candidate : current;
     }
+
+    private readonly record struct CommandDefinition(
+        string Id,
+        string Title,
+        string Detail,
+        string Keywords);
 }

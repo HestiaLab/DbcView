@@ -84,6 +84,31 @@ public sealed class DbcCommandPaletteTests : BunitContext
     }
 
     [Fact]
+    public async Task Command_results_are_rendered_first_and_enter_runs_them()
+    {
+        DbcPaletteCommand? selectedCommand = null;
+        var cut = RenderPalette(
+            out _,
+            out _,
+            onCommandSelected: command => selectedCommand = command);
+
+        var input = cut.Find("[data-testid='dbc-palette-input']");
+        input.Input("check");
+
+        Assert.Empty(cut.FindAll("[data-testid='dbc-palette-result']"));
+        var command = cut.Find("[data-testid='dbc-palette-command']");
+        Assert.Equal("check-document", command.GetAttribute("data-command-id"));
+        Assert.Equal("true", command.GetAttribute("aria-selected"));
+        Assert.Equal("dbc-palette-option-0", input.GetAttribute("aria-activedescendant"));
+        Assert.Contains("Commands", cut.Markup, StringComparison.Ordinal);
+
+        await input.KeyDownAsync(new KeyboardEventArgs { Key = "Enter" });
+
+        Assert.NotNull(selectedCommand);
+        Assert.Equal(DbcCommandPaletteModel.CheckDocumentCommandId, selectedCommand!.Id);
+    }
+
+    [Fact]
     public async Task Escape_closes_the_palette()
     {
         var closed = 0;
@@ -121,7 +146,8 @@ public sealed class DbcCommandPaletteTests : BunitContext
     private IRenderedComponent<DbcCommandPalette> RenderPalette(
         out DbcCommandPaletteModel model,
         out SelectedResult selected,
-        Action? onClosed = null)
+        Action? onClosed = null,
+        Action<DbcPaletteCommand>? onCommandSelected = null)
     {
         var paletteModel = new DbcCommandPaletteModel();
         paletteModel.SetDocument(Document);
@@ -143,6 +169,15 @@ public sealed class DbcCommandPaletteTests : BunitContext
                 parameters.Add(
                     component => component.OnClosed,
                     EventCallback.Factory.Create(this, onClosed));
+            }
+
+            if (onCommandSelected is not null)
+            {
+                parameters.Add(
+                    component => component.OnCommandSelected,
+                    EventCallback.Factory.Create<DbcPaletteCommand>(
+                        this,
+                        onCommandSelected));
             }
         });
     }

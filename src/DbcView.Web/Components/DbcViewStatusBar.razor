@@ -1,23 +1,31 @@
-<footer class="dbc-view-statusbar" data-testid="dbc-view-status-bar" role="status" aria-live="polite">
-    <span class="dbc-statusbar-message" title="@OperationStatus">@OperationStatus</span>
+<footer class="dbc-view-statusbar" data-testid="dbc-view-status-bar">
+    <span class="dbc-statusbar-message"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          title="@OperationStatus">@OperationStatus</span>
     <span class="dbc-statusbar-items">
         @if (ErrorCount > 0)
         {
-            <span class="dbc-statusbar-item dbc-statusbar-diagnostic is-error"
-                  data-testid="dbc-status-errors"
-                  title="@ErrorCount parse error(s) in the open document">
+            <button type="button"
+                    class="dbc-statusbar-item dbc-statusbar-diagnostic is-error dbc-statusbar-button"
+                    data-testid="dbc-status-errors"
+                    title="@ErrorCount parse error(s) in the open document. Open Problems."
+                    @onclick="OnProblemsSelected">
                 <DbcIcon Name="error" Size="12" />
                 <span>@ErrorCount @(ErrorCount == 1 ? "error" : "errors")</span>
-            </span>
+            </button>
         }
         @if (WarningCount > 0)
         {
-            <span class="dbc-statusbar-item dbc-statusbar-diagnostic is-warning"
-                  data-testid="dbc-status-warnings"
-                  title="@WarningCount parse warning(s) in the open document">
+            <button type="button"
+                    class="dbc-statusbar-item dbc-statusbar-diagnostic is-warning dbc-statusbar-button"
+                    data-testid="dbc-status-warnings"
+                    title="@WarningCount parse warning(s) in the open document. Open Problems."
+                    @onclick="OnProblemsSelected">
                 <DbcIcon Name="warning" Size="12" />
                 <span>@WarningCount @(WarningCount == 1 ? "warning" : "warnings")</span>
-            </span>
+            </button>
         }
         @if (!string.IsNullOrEmpty(Document))
         {
@@ -79,4 +87,7 @@
 
     [Parameter]
     public string? Persistence { get; set; }
+
+    [Parameter]
+    public EventCallback OnProblemsSelected { get; set; }
 }

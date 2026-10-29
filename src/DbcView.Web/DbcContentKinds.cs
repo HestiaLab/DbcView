@@ -11,4 +11,5 @@ public static class DbcContentKinds
     public const string DbcTree = "dbc-tree";
     public const string DbcEditor = "dbc-editor";
     public const string DbcProperty = "dbc-property";
+    public const string DbcProblems = "dbc-problems";
 }

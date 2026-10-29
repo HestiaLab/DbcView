@@ -105,7 +105,10 @@ public sealed class DbcViewStatusBarTests : BunitContext
             .Add(component => component.WarningCount, 1));
 
         var status = cut.Find("footer");
-        Assert.Equal("status", status.GetAttribute("role"));
+        Assert.Null(status.GetAttribute("role"));
+        var message = cut.Find(".dbc-statusbar-message");
+        Assert.Equal("status", message.GetAttribute("role"));
+        Assert.Equal("polite", message.GetAttribute("aria-live"));
         Assert.Contains("Opened DBC/engine.dbc", status.TextContent, StringComparison.Ordinal);
         Assert.Contains("2 errors", cut.Find("[data-testid='dbc-status-errors']").TextContent, StringComparison.Ordinal);
         Assert.Contains("1 warning", cut.Find("[data-testid='dbc-status-warnings']").TextContent, StringComparison.Ordinal);
@@ -135,6 +138,21 @@ public sealed class DbcViewStatusBarTests : BunitContext
         {
             Assert.DoesNotContain(placeholder, cut.Markup, StringComparison.Ordinal);
         }
+    }
+
+    [Fact]
+    public void Status_bar_diagnostics_raise_the_problems_callback()
+    {
+        var selected = 0;
+        var cut = Render<DbcViewStatusBar>(parameters => parameters
+            .Add(component => component.ErrorCount, 2)
+            .Add(component => component.WarningCount, 1)
+            .Add(component => component.OnProblemsSelected, () => selected++));
+
+        cut.Find("[data-testid='dbc-status-errors']").Click();
+        cut.Find("[data-testid='dbc-status-warnings']").Click();
+
+        Assert.Equal(2, selected);
     }
 
     [Fact]

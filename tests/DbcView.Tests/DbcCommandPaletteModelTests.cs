@@ -158,6 +158,7 @@ public sealed class DbcCommandPaletteModelTests
         model.SetQuery("   ");
 
         Assert.False(model.HasQuery);
+        Assert.Empty(model.CommandResults);
         Assert.Empty(model.MessageResults);
         Assert.Empty(model.SignalResults);
         Assert.Equal(0, model.TotalMatchCount);
@@ -203,10 +204,31 @@ public sealed class DbcCommandPaletteModelTests
 
         model.SetDocument(Document);
 
+        Assert.Empty(model.CommandResults);
         Assert.Empty(model.MessageResults);
         Assert.Empty(model.SignalResults);
         Assert.Equal(string.Empty, model.Query);
         Assert.Equal(0, model.TotalMatchCount);
+    }
+
+    [Fact]
+    public void Check_command_matches_name_and_keyword_queries()
+    {
+        var model = new DbcCommandPaletteModel();
+        model.SetDocument(Document);
+
+        model.SetQuery("check");
+
+        var command = Assert.Single(model.CommandResults);
+        Assert.Equal(DbcCommandPaletteModel.CheckDocumentCommandId, command.Id);
+        Assert.Equal(1, model.ResultCount);
+        Assert.Equal(1, model.TotalMatchCount);
+
+        model.SetQuery("validate");
+        Assert.Single(model.CommandResults);
+
+        model.SetQuery("speed");
+        Assert.Empty(model.CommandResults);
     }
 
     private static DbcMessage Message(

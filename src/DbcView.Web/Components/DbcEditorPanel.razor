@@ -38,6 +38,11 @@
             <div class="dbc-editor-document-actions" role="group" aria-label="Document actions">
                 <button type="button"
                         class="dbc-action"
+                        data-testid="dbc-check-document"
+                        title="Check the current document (Ctrl+Enter)"
+                        @onclick="OnCheck">Check</button>
+                <button type="button"
+                        class="dbc-action"
                         data-testid="dbc-download"
                         @onclick="OnDownloadAsync">Download</button>
                 <button type="button"
@@ -100,35 +105,8 @@
             </div>
         }
 
-        @if (Model.ParseResult is { HasErrors: true } parseResult)
-        {
-            <div class="dbc-alert error" role="alert" data-testid="dbc-parse-errors">
-                <DbcIcon Name="error" Size="14" />
-                <div class="dbc-alert-body">
-                    <p class="dbc-alert-title">
-                        @(Model.LastSaveResult is not null
-                            ? $"Saved as an unvalidated draft ({parseResult.ErrorCount} DBC error(s)). Raw text was kept."
-                            : $"This file contains {parseResult.ErrorCount} DBC error(s).")
-                    </p>
-                    <DbcDiagnosticList Diagnostics="parseResult.Diagnostics" />
-                </div>
-            </div>
-        }
-        else if (Model.ParseResult is { Diagnostics.Count: > 0 } withWarnings)
-        {
-            <div class="dbc-alert warning" role="status" data-testid="dbc-parse-warnings">
-                <DbcIcon Name="warning" Size="14" />
-                <div class="dbc-alert-body">
-                    <p class="dbc-alert-title">
-                        @(Model.LastSaveResult is not null
-                            ? $"Saved with {withWarnings.Diagnostics.Count} DBC warning(s)."
-                            : $"{withWarnings.Diagnostics.Count} DBC warning(s) found; the document is still usable.")
-                    </p>
-                    <DbcDiagnosticList Diagnostics="withWarnings.Diagnostics" />
-                </div>
-            </div>
-        }
-        else if (Model.LastSaveResult is not null)
+        @if (Model.LastSaveResult is not null
+            && Model.ParseResult is not { Diagnostics.Count: > 0 })
         {
             <div class="dbc-alert success" role="status" data-testid="dbc-save-success">
                 <DbcIcon Name="check" Size="14" />
@@ -169,7 +147,7 @@
                     <div class="dbc-empty-state">
                         <DbcIcon Name="warning" Size="22" />
                         <p class="dbc-empty-title">Table view is unavailable</p>
-                        <p class="dbc-empty-hint">Fix the DBC errors above, then switch back to Table.</p>
+                        <p class="dbc-empty-hint">Fix the DBC errors in Problems, then switch back to Table.</p>
                     </div>
                 }
                 else if (Model.Document!.Messages.Count == 0)
@@ -315,6 +293,9 @@
 
     [Parameter]
     public EventCallback<DbcSignal> OnSignalSelected { get; set; }
+
+    [Parameter]
+    public EventCallback OnCheck { get; set; }
 
     protected override void OnInitialized()
     {

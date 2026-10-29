@@ -1,4 +1,5 @@
 #nullable enable
+using System;
 using System.Globalization;
 using DbcView.Web;
 using DbcView.Web.Components;
@@ -269,7 +270,7 @@ public sealed class DbcViewWorkspaceTests : BunitContext
         var cut = Render<DbcViewWorkspace>();
 
         cut.WaitForAssertion(
-            () => Assert.Equal(3, cut.FindAll(".dbc-compact-nav button").Count));
+            () => Assert.Equal(4, cut.FindAll(".dbc-compact-nav button").Count));
 
         var shell = cut.Find("[data-testid='dbc-view-shell']");
         Assert.Equal("editor", shell.GetAttribute("data-compact-active"));
@@ -289,6 +290,154 @@ public sealed class DbcViewWorkspaceTests : BunitContext
         Assert.Equal(
             "true",
             cut.Find("[data-testid='dbc-compact-properties']").GetAttribute("aria-pressed"));
+
+        cut.Find("[data-testid='dbc-compact-problems']").Click();
+        Assert.Equal(
+            "problems",
+            cut.Find("[data-testid='dbc-view-shell']").GetAttribute("data-compact-active"));
+        Assert.Equal(
+            "true",
+            cut.Find("[data-testid='dbc-compact-problems']").GetAttribute("aria-pressed"));
+    }
+
+    [Fact]
+    public void Workspace_lists_dbc_warnings_in_the_problems_panel()
+    {
+        var cut = Render<DbcViewWorkspace>();
+        cut.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText(
+            "VERSION \"\"\nBU_: XXX\n\nBO_ 100 M: 1 XXX\n" +
+            " SG_ TooWide : 7|2@0+ (1,0) [0|3] \"\" XXX\n",
+            "warning.dbc"));
+        cut.WaitForAssertion(
+            () => Assert.Single(cut.FindAll("[data-testid='dbc-file']")));
+        TreeTestHelpers.ClickFile(cut);
+
+        cut.WaitForAssertion(
+            () =>
+            {
+                Assert.Empty(cut.FindAll("[data-testid='dbc-parse-warnings']"));
+                Assert.Contains(
+                    "1 warning",
+                    cut.Find("[data-testid='dbc-status-warnings']").TextContent,
+                    StringComparison.Ordinal);
+
+                var row = cut.Find("[data-testid='dbc-problem-row']");
+                Assert.Equal("warning", row.GetAttribute("data-severity"));
+                Assert.Equal(
+                    "DBC006",
+                    cut.Find("[data-testid='dbc-problem-code']").TextContent.Trim());
+                Assert.Equal(
+                    "5",
+                    cut.Find("[data-testid='dbc-problem-line']").TextContent.Trim());
+                Assert.Contains(
+                    "spans bits",
+                    cut.Find("[data-testid='dbc-problem-message']").TextContent,
+                    StringComparison.Ordinal);
+            });
+    }
+
+    [Fact]
+    public void Workspace_auto_checks_unsaved_editor_text()
+    {
+        var cut = Render<DbcViewWorkspace>();
+        cut.FindComponent<InputFile>()
+            .UploadFiles(InputFileContent.CreateFromText(ValidDbc, "check.dbc"));
+        cut.WaitForAssertion(
+            () => Assert.Single(cut.FindAll("[data-testid='dbc-file']")));
+        TreeTestHelpers.ClickFile(cut);
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='dbc-table']")));
+
+        cut.Find("[data-testid='dbc-mode-text']").Click();
+        cut.Find("textarea").Change(InvalidDbc);
+
+        cut.WaitForAssertion(
+            () =>
+            {
+                var problems = cut.Find("[data-testid='dbc-problems']").TextContent;
+                Assert.Contains("DBC001", problems, StringComparison.Ordinal);
+                Assert.Contains("DBC002", problems, StringComparison.Ordinal);
+                Assert.Contains(
+                    "2 errors",
+                    cut.Find("[data-testid='dbc-status-errors']").TextContent,
+                    StringComparison.Ordinal);
+            },
+            TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void Workspace_check_button_runs_manual_validation()
+    {
+        var cut = Render<DbcViewWorkspace>();
+        cut.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText(
+            "VERSION \"\"\nBU_: XXX\n\nBO_ 100 M: 1 XXX\n" +
+            " SG_ TooWide : 7|2@0+ (1,0) [0|3] \"\" XXX\n",
+            "warning.dbc"));
+        cut.WaitForAssertion(
+            () => Assert.Single(cut.FindAll("[data-testid='dbc-file']")));
+        TreeTestHelpers.ClickFile(cut);
+        cut.WaitForAssertion(
+            () => Assert.Single(cut.FindAll("[data-testid='dbc-problem-row']")));
+
+        cut.Find("[data-testid='dbc-check-document']").Click();
+
+        cut.WaitForAssertion(
+            () => Assert.Contains(
+                "Checked DBC/warning.dbc",
+                cut.Find("[data-testid='dbc-view-status-bar']").TextContent,
+                StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Workspace_status_diagnostics_open_the_problems_panel()
+    {
+        var cut = Render<DbcViewWorkspace>();
+        cut.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText(
+            "VERSION \"\"\nBU_: XXX\n\nBO_ 100 M: 1 XXX\n" +
+            " SG_ TooWide : 7|2@0+ (1,0) [0|3] \"\" XXX\n",
+            "warning.dbc"));
+        cut.WaitForAssertion(
+            () => Assert.Single(cut.FindAll("[data-testid='dbc-file']")));
+        TreeTestHelpers.ClickFile(cut);
+        cut.WaitForAssertion(
+            () => Assert.Single(cut.FindAll("[data-testid='dbc-status-warnings']")));
+
+        cut.Find("[data-testid='dbc-status-warnings']").Click();
+
+        cut.WaitForAssertion(
+            () => Assert.Equal(
+                "problems",
+                cut.Find("[data-testid='dbc-view-shell']").GetAttribute("data-compact-active")));
+    }
+
+    [Fact]
+    public void Workspace_palette_runs_the_check_command()
+    {
+        var cut = Render<DbcViewWorkspace>();
+        cut.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText(
+            "VERSION \"\"\nBU_: XXX\n\nBO_ 100 M: 1 XXX\n" +
+            " SG_ TooWide : 7|2@0+ (1,0) [0|3] \"\" XXX\n",
+            "warning.dbc"));
+        cut.WaitForAssertion(
+            () => Assert.Single(cut.FindAll("[data-testid='dbc-file']")));
+        TreeTestHelpers.ClickFile(cut);
+        cut.WaitForAssertion(
+            () => Assert.Single(cut.FindAll("[data-testid='dbc-problem-row']")));
+
+        cut.Find("[data-testid='dbc-open-palette']").Click();
+        cut.WaitForAssertion(
+            () => Assert.NotNull(cut.Find("[data-testid='dbc-palette-input']")));
+        cut.Find("[data-testid='dbc-palette-input']").Input("check");
+
+        var command = cut.Find("[data-testid='dbc-palette-command']");
+        Assert.Equal("check-document", command.GetAttribute("data-command-id"));
+        command.Click();
+
+        cut.WaitForAssertion(
+            () => Assert.Contains(
+                "Checked DBC/warning.dbc",
+                cut.Find("[data-testid='dbc-view-status-bar']").TextContent,
+                StringComparison.Ordinal));
+        Assert.Empty(cut.FindAll("[data-testid='dbc-command-palette']"));
     }
 
     [Fact]
@@ -651,11 +800,11 @@ public sealed class DbcViewWorkspaceTests : BunitContext
         cut.WaitForAssertion(
             () =>
             {
-                // The four empty tool groups still own their LogicalRegion slot.
-                Assert.Equal(4, cut.FindAll("[data-atlas-region-empty='true']").Count);
+                // The three empty tool groups still own their LogicalRegion slot.
+                Assert.Equal(3, cut.FindAll("[data-atlas-region-empty='true']").Count);
                 // Their panels are collapsed: hidden with no content extent.
-                Assert.Equal(4, cut.FindAll(".atlas-v2-group-collapsed").Count);
-                Assert.Equal(4, cut.FindAll(".atlas-v2-group-collapsed .atlas-v2-empty-state").Count);
+                Assert.Equal(3, cut.FindAll(".atlas-v2-group-collapsed").Count);
+                Assert.Equal(3, cut.FindAll(".atlas-v2-group-collapsed .atlas-v2-empty-state").Count);
             });
     }
 
@@ -672,13 +821,13 @@ public sealed class DbcViewWorkspaceTests : BunitContext
                     .ToArray();
                 Assert.Equal(7, groups.Length);
 
-                // Content-bearing groups (explorer, editor, properties) expose
-                // a named header; empty groups intentionally render no header.
+                // Content-bearing groups (explorer, editor, properties, problems)
+                // expose a named header; empty groups intentionally render no header.
                 var contentGroups = groups
                     .Where(group => !string.IsNullOrWhiteSpace(group.GetAttribute("aria-labelledby")))
                     .ToArray();
-                Assert.Equal(3, contentGroups.Length);
-                Assert.Equal(4, groups.Length - contentGroups.Length);
+                Assert.Equal(4, contentGroups.Length);
+                Assert.Equal(3, groups.Length - contentGroups.Length);
 
                 var documentTabList = cut.Find("[data-atlas-group-kind='document'] [role='tablist']");
                 Assert.False(string.IsNullOrWhiteSpace(documentTabList.GetAttribute("aria-label")));
@@ -726,8 +875,8 @@ public sealed class DbcViewWorkspaceTests : BunitContext
         cut.WaitForAssertion(
             () =>
             {
-                Assert.Equal(2, cut.FindAll("[data-atlas-panel-header='true'][data-atlas-drag-kind='panel-header']").Count);
-                Assert.Equal(2, cut.FindAll("[data-atlas-toolbar-entry='true'][data-atlas-drag-kind='toolbar-entry']").Count);
+                Assert.Equal(3, cut.FindAll("[data-atlas-panel-header='true'][data-atlas-drag-kind='panel-header']").Count);
+                Assert.Equal(3, cut.FindAll("[data-atlas-toolbar-entry='true'][data-atlas-drag-kind='toolbar-entry']").Count);
                 Assert.Equal(6, cut.FindAll("[role='separator'][data-atlas-split-id]").Count);
                 Assert.All(
                     cut.FindAll("[role='separator'][data-atlas-split-id]"),
